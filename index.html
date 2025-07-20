@@ -2,17 +2,61 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <title>Computer Graphics Workshop Gallery</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CG Gallery (Static)</title>
-  <link rel="stylesheet" href="style.css">
+  <style>
+    body { background: #111; color: #fff; font-family: 'Roboto Mono', monospace; margin: 0; }
+    .container { padding: 2rem; }
+    .heading { font-size: 1.25rem; font-weight: 800; margin-bottom: 1.2rem; }
+    .galleryGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+    .card { position: relative; border-radius: 20px; overflow: hidden; box-shadow: 0 6px 32px 0 rgba(0,0,0,0.18); background: #111; display: flex; flex-direction: column; justify-content: flex-end; border: 1px solid #333; cursor: pointer; transition: transform 0.18s, box-shadow 0.18s; }
+    .card:hover { transform: scale(1.025); box-shadow: 0 12px 40px 0 rgba(0,0,0,0.28); }
+    .previewWrapper { width: 100%; aspect-ratio: 16/9; background: #222; }
+    .previewImg { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cardContent { padding: 1.2rem 1.5rem 1.2rem 1.5rem; background: linear-gradient(0deg, rgba(0,0,0,0.68) 60%, rgba(0,0,0,0.0) 100%); }
+    .title { font-size: 1.18rem; font-weight: 700; color: #fff; margin-bottom: 0.2rem; }
+    .filename { font-size: 0.95rem; color: #eee; opacity: 0.85; }
+    @media (max-width: 600px) {
+      .container { padding: 1rem; }
+      .galleryGrid { grid-template-columns: 1fr; }
+      .cardContent { padding: 0.7rem 1rem 0.7rem 1rem; }
+      .title { font-size: 1rem; }
+      .filename { font-size: 0.85rem; }
+    }
+  </style>
 </head>
-<body class="cg-body">
-  <div class="cg-container">
-    <h1 class="cg-title">Computer Graphics Workshop Gallery</h1>
-    <div id="gallery" class="cg-gallery-grid">
-      <!-- Gallery cards will be injected by main.js -->
+<body>
+  <div class="container">
+    <div class="heading">Computer Graphics Workshop Gallery</div>
+    <div class="galleryGrid">
+      <a href="viewer.html?file=gpuTransformation.html" class="card">
+        <div class="previewWrapper">
+          <img src="previews/1.png" alt="GPU Transformation" class="previewImg">
+        </div>
+        <div class="cardContent">
+          <div class="title">GPU Transformation</div>
+          <div class="filename">gpuTransformation.html</div>
+        </div>
+      </a>
+      <a href="viewer.html?file=gpu.html" class="card">
+        <div class="previewWrapper">
+          <img src="previews/3.png" alt="GPU" class="previewImg">
+        </div>
+        <div class="cardContent">
+          <div class="title">GPU</div>
+          <div class="filename">gpu.html</div>
+        </div>
+      </a>
+      <a href="viewer.html?file=cpu.html" class="card">
+        <div class="previewWrapper">
+          <img src="previews/2.png" alt="CPU" class="previewImg">
+        </div>
+        <div class="cardContent">
+          <div class="title">CPU</div>
+          <div class="filename">cpu.html</div>
+        </div>
+      </a>
     </div>
   </div>
-  <script src="main.js"></script>
 </body>
 </html> 

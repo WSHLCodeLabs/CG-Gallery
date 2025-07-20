@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>CPU Graphics</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        canvas {
+            border: 1px solid black;
+            scale: 3;
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="myCanvas" width="200" height="200"></canvas>
+    <script>
+        const canvas = document.getElementById('myCanvas');
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.createImageData(canvas.width, canvas.height); // สำหรับเก็บข้อมูลพิกเซล
+        const data = imageData.data; // array ที่เก็บข้อมูลสีของพิกเซล (RGBA)
+
+        // Color palette: number key -> [r, g, b, a]
+        const colorPalette = {
+            '1': [255, 0, 0, 255],    // Red
+            '2': [0, 255, 0, 255],    // Green
+            '3': [0, 0, 255, 255],    // Blue
+            '4': [255, 255, 0, 255],  // Yellow
+            '5': [255, 255, 255, 255] // White
+        };
+        let currentColor = colorPalette['1']; // Default to red
+
+        // Display color legend
+        const legend = document.createElement('div');
+        legend.innerHTML = '<b>Color keys:</b> 1=Red, 2=Green, 3=Blue, 4=Yellow, 5=White. Current: <span id="currentColorName">Red</span>';
+        legend.style.position = 'absolute';
+        legend.style.top = '10px';
+        legend.style.left = '10px';
+        legend.style.background = 'rgba(255,255,255,0.8)';
+        legend.style.padding = '4px 8px';
+        legend.style.borderRadius = '4px';
+        legend.style.fontFamily = 'sans-serif';
+        document.body.appendChild(legend);
+        const colorNames = { '1': 'Red', '2': 'Green', '3': 'Blue', '4': 'Yellow', '5': 'White' };
+        function updateLegend(key) {
+            document.getElementById('currentColorName').textContent = colorNames[key] || 'Custom';
+        }
+
+        document.addEventListener('keydown', function (event) {
+            if (colorPalette[event.key]) {
+                currentColor = colorPalette[event.key];
+                updateLegend(event.key);
+            }
+        });
+
+        function putPixel(x, y, r, g, b, a) {
+            const index = (y * canvas.width + x) * 4;
+            data[index] = r; // Red
+            data[index + 1] = g; // Green
+            data[index + 2] = b; // Blue
+            data[index + 3] = a; // Alpha (ความโปร่งใส) 0-255
+        }
+        /*for (let x = 0; x < 200; x++) {
+            let y = Math.round(4 * x + 0);
+            putPixel(x, y, 255, 0, 0, 255);
+        }*/
+
+        function drawLine(x1, y1, x2, y2, r, g, b, a) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            if (Math.abs(dx) > Math.abs(dy)) { // Iterate along x
+                const m = dy / dx;
+                const c = y1 - m * x1;
+                for (let x = Math.min(x1, x2); x <= Math.max(x1, x2); x++) {
+                    const y = Math.round(m * x + c);
+                    putPixel(x, y, r, g, b, a);
+                }
+            } else { // Iterate along y
+                const m = dx / dy; // Reciprocal slope for y-iteration
+                const c = x1 - m * y1;
+                for (let y = Math.min(y1, y2); y <= Math.max(y1, y2); y++) {
+                    const x = Math.round(m * y + c);
+                    putPixel(x, y, r, g, b, a);
+                }
+            }
+            ctx.putImageData(imageData, 0, 0); // อัปเดตหลังจากวาดเสร็จ
+        }
+        drawLine(10, 10, 190, 190, 255, 0, 0, 255);
+        drawLine(10, 190, 190, 10, 255, 0, 0, 255);
+
+        function drawRect(x1, y1, x2, y2, r, g, b, a) {
+            drawLine(x1, y1, x2, y1, r, g, b, a);
+            drawLine(x1, y2, x2, y2, r, g, b, a);
+            drawLine(x1, y1, x1, y2, r, g, b, a);
+            drawLine(x2, y1, x2, y2, r, g, b, a);
+        }
+        drawRect(50, 50, 150, 150, 0, 255, 0, 255);
+        drawRect(70, 70, 130, 130, 0, 0, 255, 255);
+
+        function drawCircle(cx, cy, radius, r, g, b, a) {
+            for (let y = -radius; y <= radius; y++) {
+                for (let x = -radius; x <= radius; x++) {
+                    if (x * x + y * y <= radius * radius) {
+                        const px = cx + x;
+                        const py = cy + y;
+                        // ตรวจสอบไม่ให้เกินขอบ canvas
+                        if (px >= 0 && px < canvas.width && py >= 0 && py < canvas.height) {
+                            putPixel(px, py, r, g, b, a);
+                        }
+                    }
+                }
+            }
+            ctx.putImageData(imageData, 0, 0); // แสดงผลหลังจากวาดเสร็จ
+        }
+        drawCircle(100, 100, 30, 0, 0, 255, 255); // วาดวงกลมสีน้ำเงินที่กลาง canvas
+
+        /*function drawCircle(cx, cy, radius, r, g, b, a, fill = true) {
+            for (let y = -radius; y <= radius; y++) {
+                for (let x = -radius; x <= radius; x++) {
+                    const distanceSquared = x * x + y * y;
+                    const radiusSquared = radius * radius;
+
+                    if (fill) {
+                        if (distanceSquared <= radiusSquared) {
+                            const px = cx + x;
+                            const py = cy + y;
+                            if (px >= 0 && px < canvas.width && py >= 0 && py < canvas.height) {
+                                putPixel(px, py, r, g, b, a);
+                            }
+                        }
+                    } else {
+                        // วาดขอบโดยให้ระยะห่างประมาณรัศมี ±1.5 (ค่า threshold)
+                        if (distanceSquared >= (radius - 1.5) * (radius - 1.5) &&
+                            distanceSquared <= (radius + 1.5) * (radius + 1.5)) {
+                            const px = cx + x;
+                            const py = cy + y;
+                            if (px >= 0 && px < canvas.width && py >= 0 && py < canvas.height) {
+                                putPixel(px, py, r, g, b, a);
+                            }
+                        }
+                    }
+                }
+            }
+            ctx.putImageData(imageData, 0, 0); // วาดผลลัพธ์ลง canvas
+        }
+        drawCircle(100, 100, 40, 0, 0, 0, 255, false);*/
+
+        let posX = 0;
+        let dirX = 1;
+        //Animation Loop
+        function animate() {
+            if (posX >= 200) {
+                dirX = -1;
+            }
+            if (posX <= 0){
+                dirX = 1;
+            }
+            posX += dirX; // อัปเดตตำแหน่ง x
+            drawCircle(posX, 100, 21, 255, 255, 255, 255); //วาดวงกลมสีขาว
+            drawCircle(posX, 100, 20, 255, 255, 0, 255); //วาดวงกลมสีเหลือง
+            ctx.putImageData(imageData, 0, 0);  //วาดข้อมูลพิกเซลลงบน canvas
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        let isDragging = false;
+        canvas.addEventListener('mousedown', function (event) {
+            isDragging = true;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = Math.floor((event.clientX - rect.left) * scaleX);
+            const y = Math.floor((event.clientY - rect.top) * scaleY);
+            putPixel(x, y, ...currentColor);
+            ctx.putImageData(imageData, 0, 0);
+        });
+        canvas.addEventListener('mouseup', function () {
+            isDragging = false;
+        });
+        canvas.addEventListener('mouseleave', function () {
+            isDragging = false;
+        });
+        canvas.addEventListener('mousemove', function (event) {
+            if (!isDragging) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = Math.floor((event.clientX - rect.left) * scaleX);
+            const y = Math.floor((event.clientY - rect.top) * scaleY);
+            putPixel(x, y, ...currentColor);
+            ctx.putImageData(imageData, 0, 0);
+        });
+
+        // canvas.addEventListener('mousemove', function (event) {
+        //     // คำนวณตำแหน่งใน canvas
+        //     const rect = canvas.getBoundingClientRect();
+        //     const scaleX = canvas.width / rect.width;
+        //     const scaleY = canvas.height / rect.height;
+        //     const x = Math.floor((event.clientX - rect.left) * scaleX);
+        //     const y = Math.floor((event.clientY - rect.top) * scaleY);
+
+        //     putPixel(x, y, 255, 0, 0, 255); // ใส่พิกเซลสีแดง
+        //     ctx.putImageData(imageData, 0, 0); // อัปเดต canvas
+        // });
+
+    </script>
+</body>
+
+</html>

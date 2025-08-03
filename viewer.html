@@ -43,7 +43,12 @@
     }
     // Set iframe src
     const file = getQueryParam('file');
-    document.getElementById('iframe').src = file ? 'html/' + encodeURIComponent(file) : '';
+    const iframe = document.getElementById('iframe');
+    iframe.src = file ? 'html/' + encodeURIComponent(file) : '';
+    // Focus the iframe after it loads
+    iframe.addEventListener('load', function() {
+      iframe.focus();
+    });
     // Floating menu logic
     const menuBtn = document.getElementById('menuBtn');
     const popupMenu = document.getElementById('popupMenu');

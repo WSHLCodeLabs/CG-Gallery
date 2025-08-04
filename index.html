@@ -8,7 +8,27 @@
     body { background: #111; color: #fff; font-family: 'Roboto Mono', monospace; margin: 0; }
     .container { padding: 2rem; }
     .heading { font-size: 1.25rem; font-weight: 800; margin-bottom: 1.2rem; }
-    .galleryGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+    .galleryGrid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+    @media (max-width: 1200px) {
+      .galleryGrid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 900px) {
+      .galleryGrid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .galleryGrid { grid-template-columns: 1fr; }
+      .card { width: 100%; }
+    }
+    /* Force each card to start on a new line if needed */
+    .card { break-inside: avoid; page-break-inside: avoid; }
+    @media (max-width: 600px) {
+      .galleryGrid { grid-template-columns: 1fr; }
+      .card { width: 100%; }
+    }
     .card { position: relative; border-radius: 20px; overflow: hidden; box-shadow: 0 6px 32px 0 rgba(0,0,0,0.18); background: #111; display: flex; flex-direction: column; justify-content: flex-end; border: 1px solid #333; cursor: pointer; transition: transform 0.18s, box-shadow 0.18s; }
     .card:hover { transform: scale(1.025); box-shadow: 0 12px 40px 0 rgba(0,0,0,0.28); }
     .previewWrapper { width: 100%; aspect-ratio: 16/9; background: #222; }
@@ -29,6 +49,15 @@
   <div class="container">
     <div class="heading">Computer Graphics Workshop Gallery</div>
     <div class="galleryGrid">
+      <a href="viewer.html?file=gpuMeshFile.html" class="card">
+        <div class="previewWrapper">
+          <img src="previews/6.png" alt="Lightingimg" class="previewImg">
+        </div>
+        <div class="cardContent">
+          <div class="title">🔥🔥Lighting🔥🔥</div>
+          <div class="filename">lightshow.html - MUST WATCH</div>
+        </div>
+      </a>
       <a href="viewer.html?file=gpuMeshFile.html" class="card">
         <div class="previewWrapper">
           <img src="previews/5.png" alt="GPU TChair obj" class="previewImg">

@@ -12,96 +12,118 @@
 </head>
 
 <body>
+    <!-- Loading status overlay -->
+    <div id="loadingStatus" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(30,30,40,0.95);color:#fff;padding:22px 38px 22px 32px;border-radius:16px;box-shadow:0 2px 24px #000a;font-family:monospace;font-size:1.2rem;z-index:100;user-select:none;">Loading assets...</div>
     <!-- core three.js -->
     <div style="position:fixed;top:12px;left:16px;z-index:32;display:flex;align-items:center;gap:10px;">
         <div id="hint" style="color:#fff;background:rgba(0,0,0,0.5);padding:7px 16px 7px 12px;border-radius:10px;font-family:monospace;font-size:1.05rem;pointer-events:none;user-select:none;display:inline-block;">Rotate: <b>A</b> / <b>D</b></div>
-        <button id="toggleOverlay" style="background:#222a38;color:#fff;border:none;padding:7px 18px 7px 18px;border-radius:10px;font-family:monospace;font-size:1.05rem;box-shadow:0 2px 8px #0005;cursor:pointer;">Show Overlay</button>
+        <button id="toggleOverlay" style="background:#222a38;color:#fff;border:none;padding:7px 18px 7px 18px;border-radius:10px;font-family:monospace;font-size:1.05rem;box-shadow:0 2px 8px #0005;cursor:pointer;">เปิดแผงคอนโทรลไฟ</button>
         <button id="speakerBtn" style="background:#222a38;color:#fff;border:none;padding:7px 14px 7px 14px;border-radius:10px;font-family:monospace;font-size:1.2rem;box-shadow:0 2px 8px #0005;cursor:pointer;display:flex;align-items:center;gap:4px;" title="Mute/Unmute"><span id="speakerIcon">🔊</span></button>
     </div>
+    <!-- Audio element for music -->
+    <audio id="bgmAudio" src="https://wshlcodelabs.github.io/CG-Gallery/html/assets/music/krabazing.mp3" preload="auto" loop style="display:none;"></audio>
+
+    <script>
+    // === Speaker/Mute logic ===
+    const speakerBtn = document.getElementById('speakerBtn');
+    const speakerIcon = document.getElementById('speakerIcon');
+    const bgmAudio = document.getElementById('bgmAudio');
+    let isMuted = false;
+    let fadeInterval = null;
+
+    function fadeInAudio(audio, duration = 2000) {
+        audio.volume = 0;
+        audio.play();
+        if (fadeInterval) clearInterval(fadeInterval);
+        fadeInterval = setInterval(() => {
+            if (audio.volume < 0.99) {
+                audio.volume = Math.min(audio.volume + 0.04, 1);
+            } else {
+                audio.volume = 1;
+                clearInterval(fadeInterval);
+            }
+        }, duration / 25);
+    }
+
+    function fadeOutAudio(audio, duration = 800) {
+        if (fadeInterval) clearInterval(fadeInterval);
+        fadeInterval = setInterval(() => {
+            if (audio.volume > 0.04) {
+                audio.volume = Math.max(audio.volume - 0.04, 0);
+            } else {
+                audio.volume = 0;
+                audio.pause();
+                clearInterval(fadeInterval);
+            }
+        }, duration / 25);
+    }
+
+    function setSpeakerState(muted) {
+        isMuted = muted;
+        if (isMuted) {
+            fadeOutAudio(bgmAudio);
+            speakerIcon.textContent = '🔇';
+        } else {
+            fadeInAudio(bgmAudio);
+            speakerIcon.textContent = '🔊';
+        }
+    }
+
+    speakerBtn.addEventListener('click', () => {
+        setSpeakerState(!isMuted);
+    });
+
+    // Start music on first user interaction (required by browsers)
+    let musicStarted = false;
+    let assetLoaded = false;
+    let userInteracted = false;
+    function tryStartMusic() {
+        if (!musicStarted && assetLoaded && userInteracted) {
+            setSpeakerState(false);
+            musicStarted = true;
+        }
+    }
+    // Listen for any user interaction to start music
+    window.addEventListener('pointerdown', function() {
+        userInteracted = true;
+        tryStartMusic();
+    }, { once: true });
+    </script>
     <!-- Light Show Control Panel -->
     <div id="light-panel" style="position:fixed;top:60px;left:16px;z-index:20;background:rgba(30,30,40,0.92);color:#fff;padding:18px 22px 18px 18px;border-radius:14px;box-shadow:0 2px 16px #0008;font-family:monospace;min-width:260px;user-select:none;display:none;">
         <div style="font-size:1.1rem;font-weight:bold;margin-bottom:8px;">🗣️🔥🔥Lighting Control</div>
-        <label>Lights: <input id="numLights" type="range" min="1" max="8" value="4" style="width:90px;vertical-align:middle;"><span id="numLightsVal">4</span></label><br>
+        <label>Lights: <input id="numLights" type="range" min="1" max="12" value="5" style="width:90px;vertical-align:middle;"><span id="numLightsVal">5</span></label><br>
         <label>Pattern:
             <select id="patternSel">
                 <option value="orbit">Orbit</option>
-                <option value="sweep">Sweep</option>
+                <option value="sweep" selected>Sweep</option>
                 <option value="random">Random</option>
                 <option value="pulse">Pulse</option>
+                <option value="zigzag">Zigzag</option>
+                <option value="spiral">Spiral</option>
+                <option value="wave">Wave</option>
             </select>
         </label><br>
         <label>Color:
             <select id="colorSel">
                 <option value="rainbow">Rainbow</option>
                 <option value="white">White</option>
-                <option value="random">Random</option>
+                <option value="random" selected>Random</option>
                 <option value="custom">Custom</option>
+                <option value="pastel">Pastel</option>
+                <option value="neon">Neon</option>
             </select>
         </label><br>
-        <label>Speed: <input id="speedRange" type="range" min="0.1" max="3" step="0.01" value="1" style="width:90px;vertical-align:middle;"><span id="speedVal">1.00</span></label><br>
+        <label>Speed: <input id="speedRange" type="range" min="0.1" max="6" step="0.01" value="1.5" style="width:90px;vertical-align:middle;"><span id="speedVal">1.50</span></label><br>
+        <label>Brightness: <input id="intensityRange" type="range" min="0.1" max="5" step="0.01" value="2.2" style="width:90px;vertical-align:middle;"><span id="intensityVal">2.20</span></label><br>
         <div id="customColors" style="margin-top:8px;display:none;"></div>
     </div>
 
     <!-- Minimap overlay -->
     <canvas id="minimap" width="180" height="180" style="position:fixed;right:24px;top:24px;z-index:30;background:rgba(20,20,30,0.92);border-radius:12px;box-shadow:0 2px 12px #0007;display:none;"></canvas>
 
-    <audio id="bgm" preload="auto" loop style="display:none;"></audio>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
-        // === Speaker/Mute and Music Logic ===
-        const speakerBtn = document.getElementById('speakerBtn');
-        const speakerIcon = document.getElementById('speakerIcon');
-        const bgm = document.getElementById('bgm');
-        // TODO: Replace with your song link
-        const SONG_URL = '';
-        let fadeInInterval = null;
-        let isMuted = false;
-        let isStarted = false;
-
-        function fadeInAudio(audio, duration = 2000) {
-            audio.volume = 0;
-            audio.play();
-            let start = null;
-            if (fadeInInterval) clearInterval(fadeInInterval);
-            fadeInInterval = setInterval(() => {
-                if (audio.volume < 0.99) {
-                    audio.volume = Math.min(audio.volume + 0.04, 1);
-                } else {
-                    audio.volume = 1;
-                    clearInterval(fadeInInterval);
-                }
-            }, duration / 25);
-        }
-
-        function setMute(mute) {
-            isMuted = mute;
-            bgm.muted = mute;
-            speakerIcon.textContent = mute ? '🔇' : '🔊';
-        }
-
-        speakerBtn.addEventListener('click', () => {
-            if (!isStarted) {
-                // Start music on first click (user gesture required)
-                if (SONG_URL) {
-                    bgm.src = SONG_URL;
-                    bgm.currentTime = 0;
-                    fadeInAudio(bgm);
-                }
-                isStarted = true;
-            } else {
-                setMute(!isMuted);
-            }
-        });
-
-        // If user pastes a song link, set it and auto-play if not started
-        window.setSongUrl = function(url) {
-            bgm.src = url;
-            if (!isStarted) {
-                bgm.currentTime = 0;
-                fadeInAudio(bgm);
-                isStarted = true;
-            }
-        }
 
     <script>
 
@@ -135,35 +157,36 @@
 
         // Remove static directional light, add dynamic spotlights for the show
         // Dynamic Light Show Variables
-        let spotLights = [];
-        let spotHelpers = [];
-        let numLights = 4;
-        let lightPattern = 'orbit';
-        let colorPattern = 'rainbow';
-        let speed = 1.0;
-        let customColors = ['#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff'];
+let spotLights = [];
+let spotHelpers = [];
+let numLights = 5;
+let lightPattern = 'sweep';
+let colorPattern = 'random';
+let speed = 1.5;
+let intensity = 2.2;
+let customColors = ['#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff'];
 
-        function createSpotLights(n) {
-            // Remove old lights
-            spotLights.forEach(l => scene.remove(l));
-            spotHelpers.forEach(h => scene.remove(h));
-            spotLights = [];
-            spotHelpers = [];
-            for (let i = 0; i < n; i++) {
-                const spot = new THREE.SpotLight(0xffffff, 2.2, 20, Math.PI/7, 0.25, 1.2);
-                spot.castShadow = true;
-                spot.shadow.mapSize.width = 1024;
-                spot.shadow.mapSize.height = 1024;
-                spot.shadow.camera.near = 0.5;
-                spot.shadow.camera.far = 30;
-                scene.add(spot);
-                // Optionally add helpers for debugging
-                // const helper = new THREE.SpotLightHelper(spot);
-                // scene.add(helper);
-                // spotHelpers.push(helper);
-                spotLights.push(spot);
-            }
-        }
+function createSpotLights(n) {
+    // Remove old lights
+    spotLights.forEach(l => scene.remove(l));
+    spotHelpers.forEach(h => scene.remove(h));
+    spotLights = [];
+    spotHelpers = [];
+    for (let i = 0; i < n; i++) {
+        const spot = new THREE.SpotLight(0xffffff, intensity, 20, Math.PI/7, 0.25, 1.2);
+        spot.castShadow = true;
+        spot.shadow.mapSize.width = 1024;
+        spot.shadow.mapSize.height = 1024;
+        spot.shadow.camera.near = 0.5;
+        spot.shadow.camera.far = 30;
+        scene.add(spot);
+        // Optionally add helpers for debugging
+        // const helper = new THREE.SpotLightHelper(spot);
+        // scene.add(helper);
+        // spotHelpers.push(helper);
+        spotLights.push(spot);
+    }
+}
         createSpotLights(numLights);
 
 
@@ -189,6 +212,7 @@
         // ✅ โหลดและแสดง OBJ
         let chairMesh = null;
         const objLoader = new THREE.OBJLoader();
+        const loadingStatus = document.getElementById('loadingStatus');
         objLoader.load(
             'https://wshlcodelabs.github.io/CG-Gallery/html/assets/obj/chair_v2.obj',
             function (object) {
@@ -208,31 +232,54 @@
                     }
                 });
                 scene.add(object);
+                // Hide loading status when done
+                if (loadingStatus) loadingStatus.style.display = 'none';
+                // Mark asset as loaded and try to start music
+                assetLoaded = true;
+                tryStartMusic();
             },
-            undefined,
+            function(xhr) {
+                // Progress callback (xhr.loaded, xhr.total)
+                if (loadingStatus && xhr.lengthComputable) {
+                    let percent = Math.floor((xhr.loaded / xhr.total) * 100);
+                    loadingStatus.textContent = `Loading assets... (${percent}%)`;
+                }
+            },
             function (error) {
+                if (loadingStatus) loadingStatus.textContent = 'Failed to load assets!';
                 console.error('An error happened loading the OBJ:', error);
             }
         );
 
         // === Light Show Animation Patterns ===
-        function getLightColor(i, t) {
-            if (colorPattern === 'rainbow') {
-                // Rainbow color cycling
-                const hue = ((t * 0.08 * speed + i / numLights) % 1.0);
-                const color = new THREE.Color();
-                color.setHSL(hue, 0.85, 0.55);
-                return color;
-            } else if (colorPattern === 'white') {
-                return new THREE.Color(0xffffff);
-            } else if (colorPattern === 'random') {
-                // Flicker random color
-                return new THREE.Color(Math.random(), Math.random(), Math.random());
-            } else if (colorPattern === 'custom') {
-                return new THREE.Color(customColors[i % customColors.length]);
-            }
-            return new THREE.Color(0xffffff);
-        }
+function getLightColor(i, t) {
+    if (colorPattern === 'rainbow') {
+        // Rainbow color cycling
+        const hue = ((t * 0.08 * speed + i / numLights) % 1.0);
+        const color = new THREE.Color();
+        color.setHSL(hue, 0.85, 0.55);
+        return color;
+    } else if (colorPattern === 'white') {
+        return new THREE.Color(0xffffff);
+    } else if (colorPattern === 'random') {
+        // Flicker random color
+        return new THREE.Color(Math.random(), Math.random(), Math.random());
+    } else if (colorPattern === 'custom') {
+        return new THREE.Color(customColors[i % customColors.length]);
+    } else if (colorPattern === 'pastel') {
+        // Pastel colors
+        const pastelHues = [0.05, 0.12, 0.18, 0.33, 0.58, 0.72, 0.85];
+        const hue = pastelHues[i % pastelHues.length];
+        const color = new THREE.Color();
+        color.setHSL(hue, 0.5, 0.8);
+        return color;
+    } else if (colorPattern === 'neon') {
+        // Neon colors
+        const neonColors = [0x39ff14, 0xff073a, 0x00f0ff, 0xfffb00, 0xff00de, 0x00ff85];
+        return new THREE.Color(neonColors[i % neonColors.length]);
+    }
+    return new THREE.Color(0xffffff);
+}
 
         // Scatter spotlights more widely and randomize their targets
         // Precompute random target offsets for each light
@@ -255,40 +302,54 @@
         };
         updateSpotTargetOffsets();
 
-        function updateSpotLights(t) {
-            // Increase scatter radius
-            const scatterRadius = 7.5;
-            for (let i = 0; i < spotLights.length; i++) {
-                const spot = spotLights[i];
-                // Movement patterns
-                let x = 0, y = 0, z = 0;
-                if (lightPattern === 'orbit') {
-                    const angle = t * 0.001 * speed + (i * 2 * Math.PI / spotLights.length);
-                    x = Math.cos(angle) * scatterRadius + (Math.sin(angle * 1.7 + i) * 1.5);
-                    z = Math.sin(angle) * scatterRadius + (Math.cos(angle * 1.3 + i) * 1.5);
-                    y = 4.5 + Math.sin(angle * 1.5 + i) * 2.2;
-                } else if (lightPattern === 'sweep') {
-                    x = Math.sin(t * 0.001 * speed + i) * scatterRadius + Math.cos(i * 2) * 2.2;
-                    z = Math.cos(i) * scatterRadius + Math.sin(i * 2) * 2.2;
-                    y = 4.5 + Math.cos(t * 0.001 * speed * 1.5 + i) * 2.2;
-                } else if (lightPattern === 'random') {
-                    x = Math.sin(t * 0.001 * speed * (1.2 + i)) * scatterRadius + Math.random() * 1.2;
-                    z = Math.cos(t * 0.001 * speed * (1.1 + i)) * scatterRadius + Math.random() * 1.2;
-                    y = 4.5 + Math.sin(t * 0.001 * speed * (1.3 + i)) * 2.2 + Math.random() * 1.2;
-                } else if (lightPattern === 'pulse') {
-                    const base = Math.sin(t * 0.001 * speed + i) * 4.5;
-                    x = Math.cos(i) * (4.5 + base);
-                    z = Math.sin(i) * (4.5 + base);
-                    y = 4.5 + Math.abs(base) * 1.2;
-                }
-                spot.position.set(x, y, z);
-                // Scatter target points, not always at chair
-                let target = spotTargetOffsets[i] || { x: 0, y: 0.7, z: 0 };
-                spot.target.position.set(target.x, target.y, target.z);
-                spot.target.updateMatrixWorld();
-                spot.color = getLightColor(i, t * 0.001);
-            }
+function updateSpotLights(t) {
+    // Increase scatter radius
+    const scatterRadius = 7.5;
+    for (let i = 0; i < spotLights.length; i++) {
+        const spot = spotLights[i];
+        // Movement patterns
+        let x = 0, y = 0, z = 0;
+        if (lightPattern === 'orbit') {
+            const angle = t * 0.001 * speed + (i * 2 * Math.PI / spotLights.length);
+            x = Math.cos(angle) * scatterRadius + (Math.sin(angle * 1.7 + i) * 1.5);
+            z = Math.sin(angle) * scatterRadius + (Math.cos(angle * 1.3 + i) * 1.5);
+            y = 4.5 + Math.sin(angle * 1.5 + i) * 2.2;
+        } else if (lightPattern === 'sweep') {
+            x = Math.sin(t * 0.001 * speed + i) * scatterRadius + Math.cos(i * 2) * 2.2;
+            z = Math.cos(i) * scatterRadius + Math.sin(i * 2) * 2.2;
+            y = 4.5 + Math.cos(t * 0.001 * speed * 1.5 + i) * 2.2;
+        } else if (lightPattern === 'random') {
+            x = Math.sin(t * 0.001 * speed * (1.2 + i)) * scatterRadius + Math.random() * 1.2;
+            z = Math.cos(t * 0.001 * speed * (1.1 + i)) * scatterRadius + Math.random() * 1.2;
+            y = 4.5 + Math.sin(t * 0.001 * speed * (1.3 + i)) * 2.2 + Math.random() * 1.2;
+        } else if (lightPattern === 'pulse') {
+            const base = Math.sin(t * 0.001 * speed + i) * 4.5;
+            x = Math.cos(i) * (4.5 + base);
+            z = Math.sin(i) * (4.5 + base);
+            y = 4.5 + Math.abs(base) * 1.2;
+        } else if (lightPattern === 'zigzag') {
+            x = ((i % 2 === 0) ? 1 : -1) * Math.abs(Math.sin(t * 0.001 * speed + i)) * scatterRadius * 0.9;
+            z = Math.cos(i) * scatterRadius * 0.7 + Math.sin(t * 0.001 * speed * 1.2 + i) * 2.2;
+            y = 4.5 + Math.abs(Math.sin(t * 0.001 * speed * 1.5 + i)) * 2.2;
+        } else if (lightPattern === 'spiral') {
+            const angle = t * 0.001 * speed + (i * 2 * Math.PI / spotLights.length);
+            const spiral = (i + 1) / spotLights.length * scatterRadius;
+            x = Math.cos(angle) * spiral;
+            z = Math.sin(angle) * spiral;
+            y = 4.5 + spiral * 0.7 + Math.sin(angle * 2.2 + i) * 1.2;
+        } else if (lightPattern === 'wave') {
+            x = Math.sin(t * 0.001 * speed + i) * scatterRadius * 0.8;
+            z = Math.cos(i) * scatterRadius * 0.8;
+            y = 4.5 + Math.sin(t * 0.001 * speed * 2 + i) * 2.5;
         }
+        spot.position.set(x, y, z);
+        // Scatter target points, not always at chair
+        let target = spotTargetOffsets[i] || { x: 0, y: 0.7, z: 0 };
+        spot.target.position.set(target.x, target.y, target.z);
+        spot.target.updateMatrixWorld();
+        spot.color = getLightColor(i, t * 0.001);
+    }
+}
 
         // === Minimap logic ===
         const minimap = document.getElementById('minimap');
@@ -356,7 +417,7 @@
         overlayVisible = !overlayVisible;
         minimap.style.display = overlayVisible ? '' : 'none';
         document.getElementById('light-panel').style.display = overlayVisible ? '' : 'none';
-        toggleOverlayBtn.textContent = overlayVisible ? 'Hide Overlay' : 'Show Overlay';
+        toggleOverlayBtn.textContent = overlayVisible ? 'ปิดแผงคอนโทรลไฟ' : 'เปิดแผงคอนโทรลไฟ';
         });
 
         // Animate chair color in sync with lights, and update minimap
@@ -409,6 +470,23 @@
             speed = parseFloat(speedRange.value);
             speedVal.textContent = speed.toFixed(2);
         });
+        // === Intensity/Brightness Control ===
+        const intensityRange = document.getElementById('intensityRange');
+        const intensityVal = document.getElementById('intensityVal');
+        intensityRange.value = intensity;
+        intensityVal.textContent = intensity.toFixed(2);
+        intensityRange.addEventListener('input', () => {
+            intensity = parseFloat(intensityRange.value);
+            intensityVal.textContent = intensity.toFixed(2);
+            spotLights.forEach(l => l.intensity = intensity);
+        });
+        // Set initial values in UI to match JS defaults
+        numLightsInput.value = numLights;
+        numLightsVal.textContent = numLights;
+        patternSel.value = lightPattern;
+        colorSel.value = colorPattern;
+        speedRange.value = speed;
+        speedVal.textContent = speed.toFixed(2);
 
         function updateCustomColorInputs() {
             if (colorSel.value === 'custom') {
@@ -429,6 +507,8 @@
             }
         }
         updateCustomColorInputs();
+        // Ensure intensity is applied to all spotlights on startup and when lights are created
+        spotLights.forEach(l => l.intensity = intensity);
     </script>
 </body>
 

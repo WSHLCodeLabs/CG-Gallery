@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>GPU Shadow</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- core three.js -->
+    <div style="position:fixed;top:12px;left:16px;z-index:32;display:flex;align-items:center;gap:10px;">
+        <div id="hint" style="color:#fff;background:rgba(0,0,0,0.5);padding:7px 16px 7px 12px;border-radius:10px;font-family:monospace;font-size:1.05rem;pointer-events:none;user-select:none;display:inline-block;">Rotate: <b>A</b> / <b>D</b></div>
+        <button id="toggleOverlay" style="background:#222a38;color:#fff;border:none;padding:7px 18px 7px 18px;border-radius:10px;font-family:monospace;font-size:1.05rem;box-shadow:0 2px 8px #0005;cursor:pointer;">Show Overlay</button>
+        <button id="speakerBtn" style="background:#222a38;color:#fff;border:none;padding:7px 14px 7px 14px;border-radius:10px;font-family:monospace;font-size:1.2rem;box-shadow:0 2px 8px #0005;cursor:pointer;display:flex;align-items:center;gap:4px;" title="Mute/Unmute"><span id="speakerIcon">🔊</span></button>
+    </div>
+    <!-- Light Show Control Panel -->
+    <div id="light-panel" style="position:fixed;top:60px;left:16px;z-index:20;background:rgba(30,30,40,0.92);color:#fff;padding:18px 22px 18px 18px;border-radius:14px;box-shadow:0 2px 16px #0008;font-family:monospace;min-width:260px;user-select:none;display:none;">
+        <div style="font-size:1.1rem;font-weight:bold;margin-bottom:8px;">🗣️🔥🔥Lighting Control</div>
+        <label>Lights: <input id="numLights" type="range" min="1" max="8" value="4" style="width:90px;vertical-align:middle;"><span id="numLightsVal">4</span></label><br>
+        <label>Pattern:
+            <select id="patternSel">
+                <option value="orbit">Orbit</option>
+                <option value="sweep">Sweep</option>
+                <option value="random">Random</option>
+                <option value="pulse">Pulse</option>
+            </select>
+        </label><br>
+        <label>Color:
+            <select id="colorSel">
+                <option value="rainbow">Rainbow</option>
+                <option value="white">White</option>
+                <option value="random">Random</option>
+                <option value="custom">Custom</option>
+            </select>
+        </label><br>
+        <label>Speed: <input id="speedRange" type="range" min="0.1" max="3" step="0.01" value="1" style="width:90px;vertical-align:middle;"><span id="speedVal">1.00</span></label><br>
+        <div id="customColors" style="margin-top:8px;display:none;"></div>
+    </div>
+
+    <!-- Minimap overlay -->
+    <canvas id="minimap" width="180" height="180" style="position:fixed;right:24px;top:24px;z-index:30;background:rgba(20,20,30,0.92);border-radius:12px;box-shadow:0 2px 12px #0007;display:none;"></canvas>
+
+    <audio id="bgm" preload="auto" loop style="display:none;"></audio>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+        // === Speaker/Mute and Music Logic ===
+        const speakerBtn = document.getElementById('speakerBtn');
+        const speakerIcon = document.getElementById('speakerIcon');
+        const bgm = document.getElementById('bgm');
+        // TODO: Replace with your song link
+        const SONG_URL = '';
+        let fadeInInterval = null;
+        let isMuted = false;
+        let isStarted = false;
+
+        function fadeInAudio(audio, duration = 2000) {
+            audio.volume = 0;
+            audio.play();
+            let start = null;
+            if (fadeInInterval) clearInterval(fadeInInterval);
+            fadeInInterval = setInterval(() => {
+                if (audio.volume < 0.99) {
+                    audio.volume = Math.min(audio.volume + 0.04, 1);
+                } else {
+                    audio.volume = 1;
+                    clearInterval(fadeInInterval);
+                }
+            }, duration / 25);
+        }
+
+        function setMute(mute) {
+            isMuted = mute;
+            bgm.muted = mute;
+            speakerIcon.textContent = mute ? '🔇' : '🔊';
+        }
+
+        speakerBtn.addEventListener('click', () => {
+            if (!isStarted) {
+                // Start music on first click (user gesture required)
+                if (SONG_URL) {
+                    bgm.src = SONG_URL;
+                    bgm.currentTime = 0;
+                    fadeInAudio(bgm);
+                }
+                isStarted = true;
+            } else {
+                setMute(!isMuted);
+            }
+        });
+
+        // If user pastes a song link, set it and auto-play if not started
+        window.setSongUrl = function(url) {
+            bgm.src = url;
+            if (!isStarted) {
+                bgm.currentTime = 0;
+                fadeInAudio(bgm);
+                isStarted = true;
+            }
+        }
+
+    <script>
+
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true; // ✅ เปิดใช้งานเงา!
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        document.body.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+
+        // ✅ กล้อง
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        // Camera orbit variables
+        let camRadius = 5;
+        let camAngle = 0;
+        const camY = 2;
+        function updateCamera() {
+            camera.position.x = Math.sin(camAngle) * camRadius;
+            camera.position.z = Math.cos(camAngle) * camRadius;
+            camera.position.y = camY;
+            camera.lookAt(0, 0.7, 0); // look at slightly above ground for chair
+        }
+        updateCamera();
+
+        // Remove static directional light, add dynamic spotlights for the show
+        // Dynamic Light Show Variables
+        let spotLights = [];
+        let spotHelpers = [];
+        let numLights = 4;
+        let lightPattern = 'orbit';
+        let colorPattern = 'rainbow';
+        let speed = 1.0;
+        let customColors = ['#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff'];
+
+        function createSpotLights(n) {
+            // Remove old lights
+            spotLights.forEach(l => scene.remove(l));
+            spotHelpers.forEach(h => scene.remove(h));
+            spotLights = [];
+            spotHelpers = [];
+            for (let i = 0; i < n; i++) {
+                const spot = new THREE.SpotLight(0xffffff, 2.2, 20, Math.PI/7, 0.25, 1.2);
+                spot.castShadow = true;
+                spot.shadow.mapSize.width = 1024;
+                spot.shadow.mapSize.height = 1024;
+                spot.shadow.camera.near = 0.5;
+                spot.shadow.camera.far = 30;
+                scene.add(spot);
+                // Optionally add helpers for debugging
+                // const helper = new THREE.SpotLightHelper(spot);
+                // scene.add(helper);
+                // spotHelpers.push(helper);
+                spotLights.push(spot);
+            }
+        }
+        createSpotLights(numLights);
+
+
+
+        // ✅ Ambient Light เล็กน้อยให้สว่างรวม
+        const ambient = new THREE.AmbientLight(0x222233, 0.7);
+        scene.add(ambient);
+
+
+
+        // ✅ พื้น
+        const planeGeometry = new THREE.PlaneGeometry(10, 10);
+        const planeMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+        plane.rotation.x = -Math.PI / 2; // หมุนให้เป็นพื้น
+        plane.position.y = 0;
+        plane.receiveShadow = true; // ✅ พื้นรับเงา
+        scene.add(plane);
+
+
+
+
+        // ✅ โหลดและแสดง OBJ
+        let chairMesh = null;
+        const objLoader = new THREE.OBJLoader();
+        objLoader.load(
+            'https://wshlcodelabs.github.io/CG-Gallery/html/assets/obj/chair_v2.obj',
+            function (object) {
+                // Center the object
+                const box = new THREE.Box3().setFromObject(object);
+                const center = box.getCenter(new THREE.Vector3());
+                object.position.sub(center); // Center at (0,0,0)
+                object.position.y += (box.max.y - box.min.y) / 2;
+                // Enable shadow and store mesh reference
+                object.traverse(function(child) {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        // Replace material with MeshStandardMaterial for color animation
+                        child.material = new THREE.MeshStandardMaterial({ color: 0xffffff });
+                        chairMesh = child;
+                    }
+                });
+                scene.add(object);
+            },
+            undefined,
+            function (error) {
+                console.error('An error happened loading the OBJ:', error);
+            }
+        );
+
+        // === Light Show Animation Patterns ===
+        function getLightColor(i, t) {
+            if (colorPattern === 'rainbow') {
+                // Rainbow color cycling
+                const hue = ((t * 0.08 * speed + i / numLights) % 1.0);
+                const color = new THREE.Color();
+                color.setHSL(hue, 0.85, 0.55);
+                return color;
+            } else if (colorPattern === 'white') {
+                return new THREE.Color(0xffffff);
+            } else if (colorPattern === 'random') {
+                // Flicker random color
+                return new THREE.Color(Math.random(), Math.random(), Math.random());
+            } else if (colorPattern === 'custom') {
+                return new THREE.Color(customColors[i % customColors.length]);
+            }
+            return new THREE.Color(0xffffff);
+        }
+
+        // Scatter spotlights more widely and randomize their targets
+        // Precompute random target offsets for each light
+        let spotTargetOffsets = [];
+        function updateSpotTargetOffsets() {
+            spotTargetOffsets = [];
+            for (let i = 0; i < numLights; i++) {
+                // Scatter target points within a region around the chair
+                const tx = (Math.random() - 0.5) * 6; // -3 to 3
+                const tz = (Math.random() - 0.5) * 6; // -3 to 3
+                const ty = 0.7 + (Math.random() - 0.5) * 1.2; // 0.1 to 1.3
+                spotTargetOffsets.push({ x: tx, y: ty, z: tz });
+            }
+        }
+        // Update offsets whenever number of lights changes
+        const origCreateSpotLights = createSpotLights;
+        createSpotLights = function(n) {
+            origCreateSpotLights(n);
+            updateSpotTargetOffsets();
+        };
+        updateSpotTargetOffsets();
+
+        function updateSpotLights(t) {
+            // Increase scatter radius
+            const scatterRadius = 7.5;
+            for (let i = 0; i < spotLights.length; i++) {
+                const spot = spotLights[i];
+                // Movement patterns
+                let x = 0, y = 0, z = 0;
+                if (lightPattern === 'orbit') {
+                    const angle = t * 0.001 * speed + (i * 2 * Math.PI / spotLights.length);
+                    x = Math.cos(angle) * scatterRadius + (Math.sin(angle * 1.7 + i) * 1.5);
+                    z = Math.sin(angle) * scatterRadius + (Math.cos(angle * 1.3 + i) * 1.5);
+                    y = 4.5 + Math.sin(angle * 1.5 + i) * 2.2;
+                } else if (lightPattern === 'sweep') {
+                    x = Math.sin(t * 0.001 * speed + i) * scatterRadius + Math.cos(i * 2) * 2.2;
+                    z = Math.cos(i) * scatterRadius + Math.sin(i * 2) * 2.2;
+                    y = 4.5 + Math.cos(t * 0.001 * speed * 1.5 + i) * 2.2;
+                } else if (lightPattern === 'random') {
+                    x = Math.sin(t * 0.001 * speed * (1.2 + i)) * scatterRadius + Math.random() * 1.2;
+                    z = Math.cos(t * 0.001 * speed * (1.1 + i)) * scatterRadius + Math.random() * 1.2;
+                    y = 4.5 + Math.sin(t * 0.001 * speed * (1.3 + i)) * 2.2 + Math.random() * 1.2;
+                } else if (lightPattern === 'pulse') {
+                    const base = Math.sin(t * 0.001 * speed + i) * 4.5;
+                    x = Math.cos(i) * (4.5 + base);
+                    z = Math.sin(i) * (4.5 + base);
+                    y = 4.5 + Math.abs(base) * 1.2;
+                }
+                spot.position.set(x, y, z);
+                // Scatter target points, not always at chair
+                let target = spotTargetOffsets[i] || { x: 0, y: 0.7, z: 0 };
+                spot.target.position.set(target.x, target.y, target.z);
+                spot.target.updateMatrixWorld();
+                spot.color = getLightColor(i, t * 0.001);
+            }
+        }
+
+        // === Minimap logic ===
+        const minimap = document.getElementById('minimap');
+        const mctx = minimap.getContext('2d');
+        const mapSize = 180;
+        const planeSize = 10; // matches plane geometry
+        let overlayVisible = false;
+        // Hide panel and minimap by default
+        document.getElementById('light-panel').style.display = 'none';
+        minimap.style.display = 'none';
+        function worldToMap(x, z) {
+            // Map world x,z (-planeSize/2..planeSize/2) to minimap (10px..170px)
+            const px = ((x + planeSize/2) / planeSize) * (mapSize-20) + 10;
+            const pz = ((z + planeSize/2) / planeSize) * (mapSize-20) + 10;
+            return {x: px, y: mapSize - pz}; // invert y for canvas
+        }
+        function drawMinimap() {
+            if (!overlayVisible) return;
+            mctx.clearRect(0,0,mapSize,mapSize);
+            // Draw plane outline
+            mctx.save();
+            mctx.strokeStyle = '#aaa';
+            mctx.lineWidth = 2;
+            mctx.beginPath();
+            mctx.rect(10,10,mapSize-20,mapSize-20);
+            mctx.stroke();
+            // Draw chair at center
+            mctx.beginPath();
+            mctx.arc(mapSize/2, mapSize/2, 8, 0, 2*Math.PI);
+            mctx.fillStyle = '#8888ff';
+            mctx.fill();
+            mctx.strokeStyle = '#4444aa';
+            mctx.lineWidth = 1.5;
+            mctx.stroke();
+            // Draw spotlights
+            for (let i = 0; i < spotLights.length; i++) {
+                const spot = spotLights[i];
+                const pos = worldToMap(spot.position.x, spot.position.z);
+                mctx.beginPath();
+                mctx.arc(pos.x, pos.y, 7, 0, 2*Math.PI);
+                // Use same color as light
+                mctx.fillStyle = '#' + spot.color.getHexString();
+                mctx.globalAlpha = 0.85;
+                mctx.fill();
+                mctx.globalAlpha = 1.0;
+                mctx.strokeStyle = '#fff';
+                mctx.lineWidth = 1.2;
+                mctx.stroke();
+                // Draw a line to target
+                const tgt = spot.target.position;
+                const tgtPos = worldToMap(tgt.x, tgt.z);
+                mctx.beginPath();
+                mctx.moveTo(pos.x, pos.y);
+                mctx.lineTo(tgtPos.x, tgtPos.y);
+                mctx.strokeStyle = '#fff6';
+                mctx.lineWidth = 1;
+                mctx.stroke();
+            }
+            mctx.restore();
+        }
+
+        // Overlay toggle button logic
+        const toggleOverlayBtn = document.getElementById('toggleOverlay');
+        toggleOverlayBtn.addEventListener('click', () => {
+        overlayVisible = !overlayVisible;
+        minimap.style.display = overlayVisible ? '' : 'none';
+        document.getElementById('light-panel').style.display = overlayVisible ? '' : 'none';
+        toggleOverlayBtn.textContent = overlayVisible ? 'Hide Overlay' : 'Show Overlay';
+        });
+
+        // Animate chair color in sync with lights, and update minimap
+        function animate(t) {
+            updateSpotLights(t);
+            if (chairMesh && chairMesh.material) {
+                // Use first light color for chair
+                const c = getLightColor(0, t * 0.001);
+                chairMesh.material.color.copy(c);
+            }
+            renderer.render(scene, camera);
+            drawMinimap();
+            requestAnimationFrame(animate);
+        }
+        animate(0);
+
+        window.addEventListener('keydown', (event) => {
+            if (event.key === 'a' || event.key === 'A') {
+                camAngle -= 0.12;
+                updateCamera();
+            } else if (event.key === 'd' || event.key === 'D') {
+                camAngle += 0.12;
+                updateCamera();
+            }
+        });
+
+        // === Control Panel Logic ===
+        const numLightsInput = document.getElementById('numLights');
+        const numLightsVal = document.getElementById('numLightsVal');
+        const patternSel = document.getElementById('patternSel');
+        const colorSel = document.getElementById('colorSel');
+        const speedRange = document.getElementById('speedRange');
+        const speedVal = document.getElementById('speedVal');
+        const customColorsDiv = document.getElementById('customColors');
+
+        numLightsInput.addEventListener('input', () => {
+            numLights = parseInt(numLightsInput.value);
+            numLightsVal.textContent = numLights;
+            createSpotLights(numLights);
+            updateCustomColorInputs();
+        });
+        patternSel.addEventListener('change', () => {
+            lightPattern = patternSel.value;
+        });
+        colorSel.addEventListener('change', () => {
+            colorPattern = colorSel.value;
+            updateCustomColorInputs();
+        });
+        speedRange.addEventListener('input', () => {
+            speed = parseFloat(speedRange.value);
+            speedVal.textContent = speed.toFixed(2);
+        });
+
+        function updateCustomColorInputs() {
+            if (colorSel.value === 'custom') {
+                customColorsDiv.style.display = '';
+                customColorsDiv.innerHTML = '';
+                for (let i = 0; i < numLights; i++) {
+                    const input = document.createElement('input');
+                    input.type = 'color';
+                    input.value = customColors[i] || '#ffffff';
+                    input.style.marginRight = '6px';
+                    input.addEventListener('input', (e) => {
+                        customColors[i] = e.target.value;
+                    });
+                    customColorsDiv.appendChild(input);
+                }
+            } else {
+                customColorsDiv.style.display = 'none';
+            }
+        }
+        updateCustomColorInputs();
+    </script>
+</body>
+
+</html>

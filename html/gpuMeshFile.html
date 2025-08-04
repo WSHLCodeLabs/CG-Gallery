@@ -13,6 +13,7 @@
 
 <body>
     <!-- core three.js -->
+    <div id="hint" style="position:fixed;top:12px;left:16px;color:#fff;background:rgba(0,0,0,0.5);padding:7px 16px 7px 12px;border-radius:10px;font-family:monospace;font-size:1.05rem;z-index:10;pointer-events:none;user-select:none;">Rotate: <b>A</b> / <b>D</b></div>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
 
@@ -34,8 +35,17 @@
             0.1,
             1000
         );
-        camera.position.set(0, 2, 5);
-        camera.lookAt(0, 0, 0);
+        // Camera orbit variables
+        let camRadius = 5;
+        let camAngle = 0;
+        const camY = 2;
+        function updateCamera() {
+            camera.position.x = Math.sin(camAngle) * camRadius;
+            camera.position.z = Math.cos(camAngle) * camRadius;
+            camera.position.y = camY;
+            camera.lookAt(0, 0.7, 0); // look at slightly above ground for chair
+        }
+        updateCamera();
 
         // ✅ Directional Light ที่สร้างเงา
         const light = new THREE.DirectionalLight(0xffffff, 1);
@@ -67,18 +77,60 @@
 
 
 
+
+        // ✅ โหลดและแสดง OBJ
+        let chairMesh = null;
+        const objLoader = new THREE.OBJLoader();
+        objLoader.load(
+            'https://wshlcodelabs.github.io/CG-Gallery/html/assets/obj/chair_v2.obj',
+            function (object) {
+                // Center the object
+                const box = new THREE.Box3().setFromObject(object);
+                const center = box.getCenter(new THREE.Vector3());
+                object.position.sub(center); // Center at (0,0,0)
+                object.position.y += (box.max.y - box.min.y) / 2;
+                // Enable shadow and store mesh reference
+                object.traverse(function(child) {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        // Replace material with MeshStandardMaterial for color animation
+                        child.material = new THREE.MeshStandardMaterial({ color: 0xffffff });
+                        chairMesh = child;
+                    }
+                });
+                scene.add(object);
+            },
+            undefined,
+            function (error) {
+                console.error('An error happened loading the OBJ:', error);
+            }
+        );
+
         // ✅ render loop
         function animate(t) {
-
-         
-
+            // Animate chair color in RGB loop
+            if (chairMesh && chairMesh.material) {
+                const speed = 0.001; // speed of color loop
+                const time = t * speed;
+                const r = Math.floor((Math.sin(time) * 127 + 128));
+                const g = Math.floor((Math.sin(time + 2) * 127 + 128));
+                const b = Math.floor((Math.sin(time + 4) * 127 + 128));
+                chairMesh.material.color.setRGB(r / 255, g / 255, b / 255);
+            }
             renderer.render(scene, camera);
             requestAnimationFrame(animate);
         }
         animate(0);
 
         window.addEventListener('keydown', (event) => {
-
+            if (event.key === 'a' || event.key === 'A') {
+                camAngle -= 0.12;
+                updateCamera();
+            } else if (event.key === 'd' || event.key === 'D') {
+                camAngle += 0.12;
+                updateCamera();
+            }
         });
 
     </script>

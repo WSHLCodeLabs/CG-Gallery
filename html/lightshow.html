@@ -84,10 +84,14 @@
         }
     }
     // Listen for any user interaction to start music
-    window.addEventListener('pointerdown', function() {
+    function handleUserInteraction() {
         userInteracted = true;
         tryStartMusic();
-    }, { once: true });
+    }
+    window.addEventListener('pointerdown', handleUserInteraction, { once: true });
+    // Also trigger on first click/tap of overlay or speaker button (for mobile)
+    toggleOverlayBtn.addEventListener('click', handleUserInteraction, { once: true });
+    speakerBtn.addEventListener('click', handleUserInteraction, { once: true });
     </script>
     <!-- Light Show Control Panel -->
     <div id="light-panel" style="position:fixed;top:60px;left:16px;z-index:20;background:rgba(30,30,40,0.92);color:#fff;padding:18px 22px 18px 18px;border-radius:14px;box-shadow:0 2px 16px #0008;font-family:monospace;min-width:260px;user-select:none;display:none;">

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Picking</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            overflow: hidden
+        }
+
+        canvas {
+            display: block
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+
+<body>
+    <script>
+        (() => {
+            // --- Scene / Camera / Renderer ---
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
+            camera.position.set(0, 1.2, 4);
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(innerWidth, innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.target.set(0, 0.5, 0);
+            controls.enableDamping = true;
+
+            // --- Ground (เส้นกริดช่วยกะระยะ) ---
+            const grid = new THREE.GridHelper(10, 10, 0x666666, 0x333333);
+            grid.position.y = -0.001;
+            scene.add(grid);
+
+
+
+            // --- Objects (3 ชิ้น / สีต่างกัน / ไม่ต้องมีไฟเพราะใช้ MeshBasic) ---
+            const clickable = [];
+
+            function addObj(mesh, pos, name) {
+                mesh.position.copy(pos);
+                mesh.name = name;
+                scene.add(mesh);
+                clickable.push(mesh);
+                return mesh;
+            }
+
+            addObj(
+                new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), new THREE.MeshBasicMaterial({ color: 0xff6b6b })),
+                new THREE.Vector3(-2, 0.4, 0),
+                'Box'
+            );
+
+            addObj(
+                new THREE.Mesh(new THREE.SphereGeometry(0.45, 32, 16), new THREE.MeshBasicMaterial({ color: 0x5dff9b })),
+                new THREE.Vector3(0, 0.45, 0),
+                'Sphere'
+            );
+
+            addObj(
+                new THREE.Mesh(new THREE.ConeGeometry(0.5, 1, 24), new THREE.MeshBasicMaterial({ color: 0x5db6ff })),
+                new THREE.Vector3(2, 0.5, 0),
+                'Cone'
+            );
+
+            const cylinder = addObj(
+                new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1, 24), new THREE.MeshBasicMaterial({ color: 0xffff5d })),
+                new THREE.Vector3(0, 0.5, 2),
+                'Cylinder'
+            );
+
+            cylinder.position.set(lerp(0, 10, 0.1), 0.5, 1); // เริ่มไกล ๆ
+
+            
+
+            // --- พรีเซ็ตตำแหน่งกล้องต่อวัตถุ (กำหนดง่าย ๆ) ---
+            const VIEWS = {
+                Box: { pos: new THREE.Vector3(-3, 1.4, 1.6), tar: new THREE.Vector3(-2, 0.4, 0) },
+                Sphere: { pos: new THREE.Vector3(0, 2.8, 3.0), tar: new THREE.Vector3(0, 0.45, 0) },
+                Cone: { pos: new THREE.Vector3(3, 1.6, -2.0), tar: new THREE.Vector3(2, 0.5, 0) },
+                Cylinder: { pos: new THREE.Vector3(3, 1.6, 3.0), tar: new THREE.Vector3(0, 0.5, 2) },
+            };
+
+            // --- Raycaster + คลิกเพื่อสลับมุม ---
+            const raycaster = new THREE.Raycaster();
+            const pointer = new THREE.Vector2();
+            let pickedObjPos = new THREE.Vector3(0, 0, 0);
+
+            function setPointer(e) {
+                const r = renderer.domElement.getBoundingClientRect();
+                const x = (e.clientX ?? e.touches[0].clientX) - r.left;
+                const y = (e.clientY ?? e.touches[0].clientY) - r.top;
+                pointer.x = (x / r.width) * 2 - 1;
+                pointer.y = -(y / r.height) * 2 + 1;
+            }
+
+            function onPick(e) {
+                setPointer(e);
+                raycaster.setFromCamera(pointer, camera);
+                const hit = raycaster.intersectObjects(clickable, false)[0];
+                if (!hit) return;
+                const view = VIEWS[hit.object.name];
+                pickedObjPos = hit.object.position;
+                if (!view) return;
+
+                // ย้ายแบบทันที (ถ้าอยากนุ่ม ๆ ค่อยเสริม lerp ทีหลัง)
+                camera.position.copy(view.pos);
+                controls.target.copy(view.tar);
+                controls.update();
+            }
+
+
+
+
+            renderer.domElement.addEventListener('click', onPick);
+            renderer.domElement.addEventListener('touchend', (e) => { onPick(e); }, { passive: true });
+
+            // --- Resize ---
+            addEventListener('resize', () => {
+                camera.aspect = innerWidth / innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(innerWidth, innerHeight);
+            });
+
+            function lerp(a, b, t) {
+                return a + (b - a) * t;   // t ใน [0..1]
+            }
+
+            let t = 0.5;
+            let CylinderTarget = new THREE.Vector3();
+
+            // --- Loop ---
+            function loop() {
+                controls.update();
+                t += 0.01;
+                if(t>1.0){
+                    t=0.0;
+                    CylinderTarget.x = lerp(0, 2, Math.random());
+                    CylinderTarget.y = 0.5;
+                    CylinderTarget.z = lerp(0, 2, Math.random());
+
+                }
+
+                // Move cylinder toward CylinderTarget every frame for smooth movement
+                cylinder.position.lerp(CylinderTarget, 0.05);
+                controls.target.lerp(pickedObjPos, 0.05);
+                //controls.position = pickedObjPos
+
+
+                renderer.render(scene, camera);
+                requestAnimationFrame(loop);
+            }
+            loop();
+        })();
+    </script>
+</body>
+
+</html>

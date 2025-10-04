@@ -5,7 +5,7 @@
   <title>Computer Graphics Workshop Gallery</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { background: #111; color: #fff; font-family: 'Roboto Mono', monospace; margin: 0; }
+    body { background: #111; color: #fff; font-family: 'Roboto Mono', monospace; margin: 0; padding-bottom: 140px; }
     .container { padding: 2rem; }
     .heading { font-size: 1.25rem; font-weight: 800; margin-bottom: 1.2rem; }
     .galleryGrid {
@@ -43,7 +43,17 @@
       .title { font-size: 1rem; }
       .filename { font-size: 0.85rem; }
     }
-  </style>
+    .final-banner{ position:fixed; left:50%; bottom:32px; transform:translateX(-50%); width:min(92vw, 780px); z-index:80; pointer-events:auto; }
+    .final-banner a{ --banner-image:url('previews/9.png'); position:relative; display:flex; justify-content:center; align-items:center; gap:0.6rem; padding:1.05rem 2.3rem; border-radius:999px; color:#f9fafb; text-decoration:none; font-weight:700; letter-spacing:0.3px; border:3px solid transparent; background:linear-gradient(#050505,#050505) padding-box, linear-gradient(90deg, #ff00aa, #00bfff, #ff6e00, #ff00aa) border-box; background-origin:border-box; background-clip:padding-box, border-box; background-size:100% 100%, 200% 100%; background-position:center, 0% 50%; overflow:hidden; box-shadow:0 18px 36px rgba(0,0,0,0.48); transition:color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease; animation:borderFlow 1s linear infinite; animation-play-state:paused; }
+    .final-banner a::after{ content:''; position:absolute; inset:4px; border-radius:inherit; background:#050505; z-index:-1; opacity:1; transition:opacity 0.35s ease; background-size:cover; background-position:center; }
+    .final-banner a span{ position:relative; z-index:2; }
+    .final-banner a:hover{ color:#080c1a; transform:translateY(-3px); box-shadow:0 0 30px rgba(255,0,153,0.45), 0 0 34px rgba(0,189,255,0.32), 0 20px 36px rgba(0,0,0,0.52); animation-play-state:running; }
+    .final-banner a:hover::after{ background-image:var(--banner-image); opacity:0.8; }
+    @keyframes borderFlow{ 0%{ background-position:center, 0% 50%; } 50%{ background-position:center, 100% 50%; } 100%{ background-position:center, 0% 50%; } }
+    @media (max-width:768px){ .final-banner a{ padding:0.95rem 1.8rem; font-size:0.95rem; } }
+    @media (max-width:520px){ .final-banner{ bottom:20px; width:92vw; } }
+
+</style>
 </head>
 <body>
   <div class="container">
@@ -124,5 +134,10 @@
       
     </div>
   </div>
+  <div class="final-banner">
+    <a href="viewer.html?file=final.html" aria-label="Open final assignment viewer">
+      <span>Looking for Final Assignment? Click here! 👈</span>
+    </a>
+  </div>
 </body>
-</html> 
+</html>

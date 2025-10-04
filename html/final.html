@@ -1,0 +1,960 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PBR Viewer — Three.js</title>
+  <style>
+    :root{ --bg:#0f1115; --panel:#151923; --text:#e5e7eb; --muted:#9aa3b2; --gold:#eab308; }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{ margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+    #c{ display:block; width:100vw; height:100vh; outline:none; }
+    .hud{ position:fixed; left:16px; bottom:16px; background:color-mix(in srgb, var(--panel) 92%, transparent); padding:12px 14px; border-radius:14px; box-shadow:0 8px 30px rgba(0,0,0,.35); backdrop-filter: blur(6px); }
+    .hud b{ color:white; }
+    .hud small{ color:var(--muted); }
+    .toolbar{ position:fixed; top:16px; left:16px; display:flex; gap:8px; z-index:2; }
+    .btn{ border:none; border-radius:12px; padding:10px 14px; background:#1e2734; color:#e8eefc; cursor:pointer; font-weight:600; letter-spacing:.2px; box-shadow:0 4px 14px rgba(0,0,0,.25); }
+    .btn:hover{ filter:brightness(1.1); }
+    input[type="file"]{ display:none; }
+    .banner{ position:fixed; right:16px; top:16px; background:color-mix(in srgb, var(--panel) 92%, transparent); padding:12px 16px; border-radius:14px; box-shadow:0 8px 30px rgba(0,0,0,.35); max-width:420px; line-height:1.4; }
+    .banner h1{ margin:0 0 4px; font-size:16px; }
+    .banner p{ margin:0; color:var(--muted); font-size:13px; }
+    .credit{ position:fixed; right:16px; bottom:16px; color:#9aa3b2; font-size:12px; opacity:.85; }
+    /* lil-gui polish */
+    .lil-gui.root{ --font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial; --background-color: #121620; --widget-color: #1b2230; --text-color: #d7dde8; --title-background-color:#0f141d; --hover-color:#2a3448; --focus-color:#2f3b52; --number-color:#8794aa; }
+  /* Bottom center dock */
+    .dock{ position:fixed; left:50%; transform:translateX(-50%); bottom:16px; display:flex; gap:12px; z-index:12; }
+    .pill,.fab{ border:none; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.35); }
+    .pill{ width:56px; height:48px; border-radius:999px; background:#1e2734; color:#e8eefc; display:flex; align-items:center; justify-content:center; }
+    .fab{ width:52px; height:52px; border-radius:50%; background:#1f2937; color:white; display:grid; place-items:center; }
+    .pill:hover,.fab:hover{ filter:brightness(1.1); }
+
+    /* Overlay bottom-sheet for GUI */
+    .overlay{ position:fixed; inset:0; background:rgba(0,0,0,.35); backdrop-filter: blur(2px); opacity:0; pointer-events:none; transition:opacity .25s ease; z-index:10; }
+    .overlay.show{ opacity:1; pointer-events:auto; }
+    .tray{ position:relative; width:min(520px, calc(100vw - 24px)); margin:0 auto 18px; background:color-mix(in srgb, var(--panel) 92%, transparent); border-radius:16px; padding:12px; box-shadow:0 20px 60px rgba(0,0,0,.45); transform: translateY(18px) scale(.98); transition: transform .28s cubic-bezier(.2,.8,.2,1); }
+    .overlay.show .tray{ transform: translateY(0) scale(1); }
+    .close{ position:absolute; right:12px; top:12px; width:36px; height:36px; border-radius:999px; border:none; background:#101521; color:#e5e7eb; cursor:pointer; display:grid; place-items:center; box-shadow:0 6px 20px rgba(0,0,0,.35); }
+    .tray .lil-gui.root{ width:100%; font-size:14px; }
+    /* Toast hint */
+    .toast{ position:fixed; left:50%; bottom:88px; transform:translateX(-50%); background:rgba(16,21,33,.92); color:#e5e7eb; padding:10px 14px; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,.4); opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease; font-size:13px; z-index:6; }
+    .toast.show{ opacity:1; transform:translateX(-50%) translateY(-6px); }
+    /* Bottom-right Free-fly hint */
+    .ff-hint{ position:fixed; right:16px; bottom:16px; background:color-mix(in srgb, var(--panel) 92%, transparent); color:var(--text); border-radius:14px; padding:10px 12px; box-shadow:0 12px 40px rgba(0,0,0,.45); z-index:7; width:280px; opacity:0; transform:translateY(8px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; font-size:13px; }
+    .ff-hint.show{ opacity:1; transform:translateY(0); pointer-events:auto; }
+    .ff-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:6px 0; }
+    .ff-row.head{ margin-top:2px; margin-bottom:8px; }
+    .ff-x{ border:none; width:28px; height:28px; border-radius:999px; background:#0f141d; color:#e5e7eb; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,.3); }
+    .keys{ display:flex; gap:6px; align-items:center; }
+    .keycap{ background:#0f141d; border:1px solid #2a3448; border-radius:6px; padding:2px 6px; min-width:26px; text-align:center; font-weight:700; color:#d7dde8; box-shadow: inset 0 -1px 0 rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.06); }
+    .icon{ color:#d7dde8; opacity:.9; }
+    /* Bottom expanding panel from pill */
+    .panel{ position:fixed; left:50%; bottom:16px; transform:translateX(-50%) translateY(8px) scale(.98); width:56px; height:48px; border-radius:999px; background:color-mix(in srgb,var(--panel) 92%, transparent); box-shadow:0 20px 60px rgba(0,0,0,.45); opacity:0; pointer-events:none; transition: width .28s cubic-bezier(.2,.8,.2,1), height .28s cubic-bezier(.2,.8,.2,1), border-radius .28s, transform .28s, opacity .2s; z-index:9; }
+    .panel.open{ width:min(300px, 80vw); height:clamp(150px, 28vh, 220px); border-radius:16px; opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0) scale(1); }
+    .panel-inner{ display:flex; flex-direction:column; width:100%; height:100%; padding:6px 8px; }
+    .tabs{ display:flex; gap:16px; padding:6px 8px 10px; align-items:center; }
+    .tab-btn{ background:transparent; border:none; padding:6px 2px; border-radius:0; color:var(--muted); cursor:pointer; font-weight:700; letter-spacing:.2px; position:relative; }
+    .tab-btn.active{ color:var(--text); }
+    .tab-btn::after{ content:""; position:absolute; left:0; right:0; bottom:-6px; height:2px; background:transparent; border-radius:2px; opacity:.0; transition:opacity .2s ease, transform .2s ease; transform:scaleX(.8); }
+    .tab-btn.active::after{ background:linear-gradient(90deg, var(--gold), #c58c06); opacity:1; transform:scaleX(1); }
+    .tab-btn:hover{ color:#eef2ff; }
+    .tab-content{ flex:1 1 auto; overflow:auto; padding:6px; }
+    .pill.active svg{ opacity:0; transform:scale(.85); transition: opacity .18s ease, transform .18s ease; }
+    /* Bottom center dock */
+    .dock{ position:fixed; left:50%; transform:translateX(-50%); bottom:16px; display:flex; gap:12px; z-index:5; }
+    .pill,.fab{ border:none; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.35); }
+    .pill{ width:56px; height:48px; border-radius:999px; background:#1e2734; color:#e8eefc; display:flex; align-items:center; justify-content:center; }
+    .fab{ width:52px; height:52px; border-radius:50%; background:#1f2937; color:white; display:grid; place-items:center; }
+    .pill:hover,.fab:hover{ filter:brightness(1.1); }
+
+    /* Overlay bottom-sheet for GUI */
+    .overlay{ position:fixed; inset:0; background:rgba(0,0,0,.35); backdrop-filter: blur(2px); opacity:0; pointer-events:none; transition:opacity .25s ease; z-index:10; }
+    .overlay.show{ opacity:1; pointer-events:auto; }
+    .tray{ position:relative; width:min(520px, calc(100vw - 24px)); margin:0 auto 18px; background:color-mix(in srgb, var(--panel) 92%, transparent); border-radius:16px; padding:12px; box-shadow:0 20px 60px rgba(0,0,0,.45); transform: translateY(18px) scale(.98); transition: transform .28s cubic-bezier(.2,.8,.2,1); }
+    .overlay.show .tray{ transform: translateY(0) scale(1); }
+    .close{ position:absolute; right:12px; top:12px; width:36px; height:36px; border-radius:999px; border:none; background:#101521; color:#e5e7eb; cursor:pointer; display:grid; place-items:center; box-shadow:0 6px 20px rgba(0,0,0,.35); }
+    .tray .lil-gui.root{ width:100%; font-size:14px; }
+    /* Toast hint */
+    .toast{ position:fixed; left:50%; bottom:88px; transform:translateX(-50%); background:rgba(16,21,33,.92); color:#e5e7eb; padding:10px 14px; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,.4); opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease; font-size:13px; z-index:6; }
+    .toast.show{ opacity:1; transform:translateX(-50%) translateY(-6px); }
+    /* Bottom-right Free-fly/Orbit hint */
+    .ff-hint{ position:fixed; right:16px; bottom:16px; background:color-mix(in srgb, var(--panel) 92%, transparent); color:var(--text); border-radius:14px; padding:10px 12px; box-shadow:0 12px 40px rgba(0,0,0,.45); z-index:7; width:300px; opacity:1; transform:translateY(0); pointer-events:auto; font-size:13px; }
+    .ff-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:6px 0; }
+    .ff-row.head{ margin-top:2px; margin-bottom:6px; }
+    .keys{ display:flex; gap:6px; align-items:center; }
+    .keycap{ background:#0f141d; border:1px solid #2a3448; border-radius:6px; padding:2px 6px; min-width:26px; text-align:center; font-weight:600; color:#d7dde8; }
+    .icon{ color:#d7dde8; opacity:.9; }
+    /* Bottom expanding panel from pill */
+    .panel{ position:fixed; left:50%; bottom:16px; transform:translateX(-50%) translateY(8px) scale(.98); width:56px; height:48px; border-radius:999px; background:color-mix(in srgb,var(--panel) 92%, transparent); box-shadow:0 20px 60px rgba(0,0,0,.45); opacity:0; pointer-events:none; transition: width .28s cubic-bezier(.2,.8,.2,1), height .28s cubic-bezier(.2,.8,.2,1), border-radius .28s, transform .28s, opacity .2s; z-index:9; }
+    .panel.open{ width:min(300px, 80vw); height:clamp(150px, 28vh, 220px); border-radius:16px; opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0) scale(1); }
+    .panel-inner{ display:flex; flex-direction:column; width:100%; height:100%; padding:6px 8px; }
+    .tabs{ display:flex; gap:16px; padding:6px 8px 10px; align-items:center; }
+    .tab-btn{ background:transparent; border:none; padding:6px 2px; border-radius:0; color:var(--muted); cursor:pointer; font-weight:700; letter-spacing:.2px; position:relative; }
+    .tab-btn.active{ color:var(--text); }
+    .tab-btn::after{ content:""; position:absolute; left:0; right:0; bottom:-6px; height:2px; background:transparent; border-radius:2px; opacity:.0; transition:opacity .2s ease, transform .2s ease; transform:scaleX(.8); }
+    .tab-btn.active::after{ background:linear-gradient(90deg, var(--gold), #c58c06); opacity:1; transform:scaleX(1); }
+    .tab-btn:hover{ color:#eef2ff; }
+    .tab-content{ flex:1 1 auto; overflow:auto; padding:6px; }
+    .pill.active svg{ opacity:0; transform:scale(.85); transition: opacity .18s ease, transform .18s ease; }
+    /* small button inside hint */
+    .mini-btn{ border:none; padding:6px 10px; border-radius:10px; background:#1e2734; color:#e5e7eb; font-weight:600; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.25); }
+    .mini-btn:hover{ filter:brightness(1.1); }
+    .ff-title{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .panel-close{ position:absolute; right:8px; top:8px; width:32px; height:32px; border:none; border-radius:999px; background:#0f141d; color:#e5e7eb; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,.3); display:grid; place-items:center; }
+    .fab.floating{ position:fixed; z-index:20; }
+  .panel .lil-gui.root{ width:100%; font-size:12px; --background-color:#111624; --widget-color:#171f2e; --title-background-color:#0c111b; --hover-color:#253047; --focus-color:#2c3b55; --text-color:#e1e7f5; border-radius:12px; padding:6px; }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div class="dock">
+    <button id="togglePanel" class="pill" aria-label="แผงคอนโทรล">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="9" cy="6" r="2" fill="currentColor"/>
+        <circle cx="15" cy="12" r="2" fill="currentColor"/>
+        <circle cx="7" cy="18" r="2" fill="currentColor"/>
+      </svg>
+    </button>
+    <button id="resetCam" class="fab" aria-label="รีเซ็ตมุมกล้อง">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 5v2m0 10v2m7-7h2M3 12H1m15.07-6.07l1.41 1.41M6.52 17.48l-1.41 1.41m0-12.72l1.41 1.41M17.48 17.48l1.41 1.41" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2"/>
+      </svg>
+    </button>
+  </div>
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <div id="ffHint" class="ff-hint" aria-hidden="false"></div>
+
+  <div id="panel" class="panel" aria-hidden="true">
+    <div class="panel-inner">
+      <button id="panelClose" class="panel-close" aria-label="ปิด">✕</button>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="model">Model</button>
+        <button class="tab-btn" data-tab="control">Control</button>
+      </div>
+      <div class="tab-content">
+        <div id="tab-model" class="tab-page" style="display:block;">
+          <div id="guiModel"></div>
+        </div>
+        <div id="tab-control" class="tab-page" style="display:none;">
+          <div id="guiControl"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="credit">Built with Three.js + lil‑gui</div>
+
+  <script type="module">
+  // --- Clean re-write: start from HDRi + FBX loading (keep same UI design) ---
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+  import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+  import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+  import GUI from 'https://unpkg.com/lil-gui@0.18/dist/lil-gui.esm.js';
+
+  // --- Renderer ---
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  // --- Scene / Camera / Controls ---
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0b0f16);
+
+  const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 300);
+  camera.position.set(2.8, 1.8, 3.2);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  const fp = new PointerLockControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.minDistance = 0.6;
+  controls.maxDistance = 25;
+  const defaultCam = camera.position.clone();
+  const defaultTarget = new THREE.Vector3(0,0,0);
+
+  // --- PMREM & HDRi ---
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  let envRT = null; // PMREM render target
+
+  function setEnvironmentFromEquirect(tex){
+    if (envRT) envRT.dispose();
+    envRT = pmrem.fromEquirectangular(tex);
+    const envMap = envRT.texture;
+    scene.environment = envMap;
+    if (params.showBackground) scene.background = envMap; else scene.background = new THREE.Color(0x0b0f16);
+    tex.dispose();
+  }
+
+  function loadHDRI(path){
+    return new Promise((resolve, reject)=>{
+      new RGBELoader().load(path, (hdrTex)=>{ setEnvironmentFromEquirect(hdrTex); resolve(hdrTex); }, undefined, (err)=>{ console.warn('HDRi load failed', err); reject(err); });
+    });
+  }
+
+  // --- Lights (keep minimal; environment already lights PBR) ---
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x11121a, 0.25);
+  scene.add(hemi);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
+  dirLight.position.set(3,5,3);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.set(2048, 2048);
+  dirLight.shadow.normalBias = 0.02;
+  scene.add(dirLight);
+
+  // Additional spotlight for focused angle control (default off)
+  const spotLight = new THREE.SpotLight(0xffffff, 0.0);
+  spotLight.position.set(-2, 4, 2);
+  spotLight.angle = Math.PI/6;
+  spotLight.penumbra = 0.25;
+  spotLight.decay = 2;
+  spotLight.distance = 0;
+  spotLight.castShadow = true;
+  spotLight.shadow.mapSize.set(1024,1024);
+  spotLight.visible = false;
+  scene.add(spotLight);
+
+  // --- Ground & Grid ---
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(10,10), new THREE.MeshStandardMaterial({ color:0x6b7280, roughness:0.92 }));
+  ground.rotation.x = -Math.PI/2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+  const grid = new THREE.GridHelper(10, 10, 0x2b3342, 0x1a2230);
+  grid.position.y = 0.001;
+  scene.add(grid);
+
+  // --- GLB ---
+  const gltfLoader = new GLTFLoader();
+  let model = null;
+  let stackGroup = null;
+  const stackState = {
+    order: ['core','text','logo'],
+    items: new Map()
+  };
+  const tempBox = new THREE.Box3();
+  const tempVec = new THREE.Vector3();
+  const modelAnim = {
+    baseY: 0,
+    hoverOffset: 0.4,
+    floatAmplitude: 0.15,
+    floatSpeed: 0.8,
+    target: null
+  };
+
+  function disposeObject3D(obj){
+    if (!obj) return;
+    obj.traverse(o=>{
+      if (!o.isMesh) return;
+      o.geometry?.dispose?.();
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      mats.forEach(mat=>{
+        if (!mat) return;
+        Object.values(mat).forEach(value=>{
+          if (value && value.isTexture) value.dispose?.();
+        });
+        mat.dispose?.();
+      });
+    });
+  }
+
+  function clearCurrentModel(){
+    if (stackGroup){
+      scene.remove(stackGroup);
+      disposeObject3D(stackGroup);
+      stackGroup = null;
+    } else if (model){
+      scene.remove(model);
+      disposeObject3D(model);
+    }
+    model = null;
+    modelAnim.target = null;
+    modelAnim.baseY = 0;
+    stackState.items.clear();
+  }
+
+  function setFloatTarget(obj, baseY = obj.position.y){
+    modelAnim.baseY = baseY + modelAnim.hoverOffset;
+    modelAnim.target = obj;
+    obj.position.y = modelAnim.baseY;
+  }
+
+  function centerAndFloor(obj){
+    const box = new THREE.Box3().setFromObject(obj);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const scale = maxDim > 0 ? 1.6 / maxDim : 1.0; // fit to ~1.6m cube
+    obj.scale.setScalar(scale);
+
+    const box2 = new THREE.Box3().setFromObject(obj);
+    const center = box2.getCenter(new THREE.Vector3());
+    const minY = box2.min.y;
+    obj.position.x += -center.x;
+    obj.position.z += -center.z;
+    obj.position.y += -minY; // place on ground
+  }
+
+  function applyPBR(root){
+    root.traverse(o=>{
+      if (!o.isMesh) return;
+      o.castShadow = true;
+      o.receiveShadow = false;
+      const convert = (mat)=>{
+        if (!mat || mat.isMeshStandardMaterial || mat.isMeshPhysicalMaterial) return mat;
+        const opts = {
+          color: mat.color ? mat.color.clone() : new THREE.Color(0xcfd5e2),
+          metalness: typeof mat.metalness === 'number' ? mat.metalness : 0.2,
+          roughness: typeof mat.roughness === 'number' ? mat.roughness : 0.5,
+          map: mat.map || null,
+          normalMap: mat.normalMap || null,
+          roughnessMap: mat.roughnessMap || null,
+          metalnessMap: mat.metalnessMap || null,
+          aoMap: mat.aoMap || null,
+          alphaMap: mat.alphaMap || null,
+          emissiveMap: mat.emissiveMap || null,
+          transparent: mat.transparent,
+          opacity: mat.opacity,
+          side: mat.side
+        };
+        if (mat.emissive) opts.emissive = mat.emissive.clone();
+        const standard = new THREE.MeshStandardMaterial(opts);
+        mat.dispose?.();
+        return standard;
+      };
+      if (Array.isArray(o.material)){
+        o.material = o.material.map(convert);
+      } else {
+        o.material = convert(o.material);
+      }
+    });
+  }
+
+  function captureMaterialSnapshots(root){
+    const snapshots = new Map();
+    const seen = new Set();
+    root.traverse(o=>{
+      if (!o.isMesh) return;
+      const assign = mat=>{
+        if (!mat || seen.has(mat)) return;
+        seen.add(mat);
+        snapshots.set(mat, {
+          color: mat.color ? mat.color.clone() : null,
+          metalness: 'metalness' in mat ? mat.metalness : undefined,
+          roughness: 'roughness' in mat ? mat.roughness : undefined,
+          clearcoat: 'clearcoat' in mat ? mat.clearcoat : undefined
+        });
+      };
+      if (Array.isArray(o.material)) o.material.forEach(assign); else assign(o.material);
+    });
+    return snapshots;
+  }
+
+  function registerStackItem(id, wrapper, content){
+    if (!content) return;
+    tempBox.setFromObject(content);
+    const height = tempBox.getSize(tempVec).y;
+    const materials = captureMaterialSnapshots(content);
+    stackState.items.set(id, { wrapper, content, baseHeight: height, materials });
+  }
+
+  function forEachItemMesh(id, fn){
+    const item = stackState.items.get(id);
+    if (item && item.content){
+      item.content.traverse(o=>{ if (o.isMesh) fn(o); });
+      return;
+    }
+    if (id === 'core' && model){
+      model.traverse(o=>{ if (o.isMesh) fn(o); });
+    }
+  }
+
+  function applyItemMaterial(id){
+    const conf = params.model?.[id];
+    if (!conf) return;
+    const item = stackState.items.get(id);
+    let root = item?.content;
+    if (!root && id === 'core' && model){
+      root = model;
+    }
+    if (!root) return;
+    const useOriginal = conf.useOriginalMaterial !== false;
+    const restore = (snapshots)=>{
+      if (!snapshots) return;
+      snapshots.forEach((snapshot, mat)=>{
+        if (snapshot.color && mat.color) mat.color.copy(snapshot.color);
+        if (snapshot.metalness !== undefined && 'metalness' in mat) mat.metalness = snapshot.metalness;
+        if (snapshot.roughness !== undefined && 'roughness' in mat) mat.roughness = snapshot.roughness;
+        if (snapshot.clearcoat !== undefined && 'clearcoat' in mat) mat.clearcoat = snapshot.clearcoat;
+      });
+    };
+    if (useOriginal){
+      restore(item?.materials);
+      return;
+    }
+    const applyToMaterial = (mat)=>{
+      if (!mat) return;
+      if (conf.color && mat.color) mat.color.set(conf.color);
+      if (typeof conf.metalness === 'number' && 'metalness' in mat) mat.metalness = conf.metalness;
+      if (typeof conf.roughness === 'number' && 'roughness' in mat) mat.roughness = conf.roughness;
+      if (typeof conf.clearcoat === 'number' && 'clearcoat' in mat) mat.clearcoat = conf.clearcoat;
+    };
+    root.traverse(o=>{
+      if (!o.isMesh) return;
+      const mat = o.material;
+      if (Array.isArray(mat)) mat.forEach(applyToMaterial); else applyToMaterial(mat);
+    });
+  }
+
+  function updateItemVisibility(id){
+    if (id === 'core' && !stackGroup && model){
+      model.visible = params.model.core.visible !== false;
+    }
+    applyModelLayout();
+  }
+
+  function applyModelLayout(){
+    if (!stackGroup) return;
+    let currentTop = 0;
+    const layout = params.model.layout;
+    stackState.order.forEach((id, index)=>{
+      const conf = params.model[id];
+      const item = stackState.items.get(id);
+      if (!conf || !item) return;
+      const wrapper = item.wrapper;
+      if (!wrapper){
+        if (id === 'core' && model){
+          model.visible = conf.visible !== false;
+        }
+        return;
+      }
+      const visible = conf.visible !== false;
+      wrapper.visible = visible;
+      const scale = conf.scale ?? 1;
+      wrapper.scale.setScalar(scale);
+      wrapper.position.x = conf.offsetX ?? 0;
+      wrapper.position.z = conf.offsetZ ?? 0;
+      wrapper.rotation.set(
+        THREE.MathUtils.degToRad(conf.rotX ?? 0),
+        THREE.MathUtils.degToRad(conf.rotY ?? 0),
+        THREE.MathUtils.degToRad(conf.rotZ ?? 0)
+      );
+      if (!visible){
+        return;
+      }
+      let gap = 0;
+      if (index > 0){
+        if (id === 'text') gap = layout.textGap ?? 0;
+        else if (id === 'logo') gap = layout.logoGap ?? 0;
+      }
+      const offsetY = conf.offsetY ?? 0;
+      wrapper.position.y = (index === 0 ? 0 : currentTop + gap) + offsetY;
+      const height = item.baseHeight * scale;
+      currentTop = wrapper.position.y + height;
+    });
+  }
+
+  function loadGLB(path){
+    return new Promise((resolve, reject)=>{
+      gltfLoader.load(path, (gltf)=>{
+        clearCurrentModel();
+        model = gltf.scene;
+        applyPBR(model);
+        centerAndFloor(model);
+        model.rotation.y = 0;
+        const wrapper = new THREE.Group();
+        wrapper.name = 'stack-core';
+        wrapper.add(model);
+        const rootGroup = new THREE.Group();
+        rootGroup.name = 'stack-single-root';
+        rootGroup.add(wrapper);
+        stackGroup = rootGroup;
+        scene.add(stackGroup);
+        registerStackItem('core', wrapper, model);
+        applyParameterState();
+        setFloatTarget(stackGroup, 0);
+        resolve(model);
+      }, undefined, (err)=>{ console.error('GLB load failed', err); reject(err); });
+    });
+  }
+
+  function loadRawGLB(path){
+    return new Promise((resolve, reject)=>{
+      gltfLoader.load(path, gltf=> resolve(gltf.scene), undefined, err=>{
+        console.error('GLB load failed', err);
+        reject(err);
+      });
+    });
+  }
+
+  async function loadDefaultStack(){
+    clearCurrentModel();
+    const group = new THREE.Group();
+    const stackDefs = [
+      { id:'core', path:'assets/model/myface.glb', primary:true },
+      { id:'text', path:'assets/model/text.glb', primary:false },
+      { id:'logo', path:'assets/model/KU Logo.glb', primary:false }
+    ];
+
+    try{
+      for (const def of stackDefs){
+        const content = await loadRawGLB(def.path);
+        applyPBR(content);
+        centerAndFloor(content);
+        const wrapper = new THREE.Group();
+        wrapper.name = 'stack-' + def.id;
+        wrapper.add(content);
+        group.add(wrapper);
+        registerStackItem(def.id, wrapper, content);
+        if (def.primary){
+          model = content;
+          model.rotation.y = 0;
+        }
+      }
+      stackGroup = group;
+      scene.add(stackGroup);
+      applyParameterState();
+      setFloatTarget(stackGroup, 0);
+      return stackGroup;
+    } catch (err){
+      disposeObject3D(group);
+      stackGroup = null;
+      model = null;
+      modelAnim.target = null;
+      stackState.items.clear();
+      throw err;
+    }
+  }
+
+
+
+// --- Drag & Drop support ---
+  addEventListener('dragover', (e)=>{ e.preventDefault(); });
+  addEventListener('drop', (e)=>{
+    e.preventDefault();
+    const files = [...e.dataTransfer.files];
+    const hdr = files.find(x=>/\.hdr$/i.test(x.name));
+    const glb = files.find(x=>/\.glb$/i.test(x.name));
+
+    if (hdr){
+      const u = URL.createObjectURL(hdr);
+      loadHDRI(u).finally(()=> URL.revokeObjectURL(u));
+    }
+    if (glb){
+      const u = URL.createObjectURL(glb);
+      loadGLB(u).finally(()=> URL.revokeObjectURL(u));
+    }
+  });
+
+  // --- GUI Shell (kept as design; we will wire controls later) ---
+  const openBtn = document.getElementById('togglePanel');
+  const panelEl = document.getElementById('panel');
+  const panelCloseBtn = document.getElementById('panelClose');
+  const resetBtn = document.getElementById('resetCam');
+
+  function positionResetFab(){
+    // Reposition reset button to avoid overlap with panel when open
+    if (!panelEl.classList.contains('open')){
+      resetBtn.classList.remove('floating');
+      resetBtn.style.left = '';
+      resetBtn.style.bottom = '';
+      return;
+    }
+    const r = panelEl.getBoundingClientRect();
+    const w = resetBtn.offsetWidth || 52;
+    const gap = 12;
+    const rightSide = r.right + gap + w/2;
+    const leftSide  = r.left - gap - w/2;
+    let x = rightSide;
+    if (rightSide > innerWidth - (w/2 + 8)){
+      x = Math.max(w/2 + 8, leftSide);
+    }
+    resetBtn.classList.add('floating');
+    resetBtn.style.left = `${x - w/2}px`;
+    resetBtn.style.bottom = '16px';
+  }
+
+  function openPanel(){ panelEl.classList.add('open'); panelEl.setAttribute('aria-hidden','false'); openBtn.classList.add('active'); positionResetFab(); }
+  function closePanel(){ panelEl.classList.remove('open'); panelEl.setAttribute('aria-hidden','true'); openBtn.classList.remove('active'); positionResetFab(); }
+  openBtn.addEventListener('click', ()=> panelEl.classList.contains('open') ? closePanel() : openPanel());
+  panelCloseBtn.addEventListener('click', closePanel);
+  addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closePanel(); });
+  addEventListener('resize', positionResetFab);
+
+  const ffHint = document.getElementById('ffHint');
+  function renderModeHint(){
+    if (!ffHint) return;
+    if (params.cameraMode === 'Free-fly'){
+      ffHint.innerHTML = `
+        <div class="ff-row head ff-title">
+          <strong>Free‑fly controls</strong>
+          <button class="mini-btn" data-action="toggle-mode">Orbit (F)</button>
+        </div>
+        <div class="ff-row">
+          <span class="keys"><span class="keycap">W</span><span class="keycap">A</span><span class="keycap">S</span><span class="keycap">D</span></span>
+          <span class="desc">เดิน/เลี้ยว</span>
+        </div>
+        <div class="ff-row">
+          <span class="keys"><span class="keycap">E</span><span class="keycap">Space</span><span class="keycap">Q</span><span class="keycap">Ctrl</span></span>
+          <span class="desc">ขึ้น/ลง</span>
+        </div>
+        <div class="ff-row">
+          <span class="keys"><span class="keycap">Shift</span></span>
+          <span class="desc">เพิ่มความเร็ว</span>
+        </div>
+        <div class="ff-row">
+          <span class="keys"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5c3 0 5.5 2.5 5.5 5.5v8c0 3-2.5 5.5-5.5 5.5s-5.5-2.5-5.5-5.5v-8c0-3 2.5-5.5 5.5-5.5zm0 2.2c-1.8 0-3.3 1.5-3.3 3.3v8c0 1.8 1.5 3.3 3.3 3.3s3.3-1.5 3.3-3.3v-8c0-1.8-1.5-3.3-3.3-3.3zm0 2.3c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1z" fill="currentColor"/></svg></span>
+          <span class="desc">คลิกเพื่อ lock เมาส์ • Esc ปลดล็อก</span>
+        </div>`;
+    } else {
+      ffHint.innerHTML = `
+        <div class="ff-row head ff-title">
+          <strong>Orbit controls</strong>
+          <button class="mini-btn" data-action="toggle-mode">Free‑fly (F)</button>
+        </div>
+        <div class="ff-row">
+          <span class="keys"><span class="keycap">Mouse</span></span>
+          <span class="desc">ลากเพื่อหมุน</span>
+        </div>
+        <div class="ff-row">
+          <span class="keys"><span class="keycap">Right‑drag</span></span>
+          <span class="desc">แพนมุมกล้อง</span>
+        </div>
+        <div class="ff-row">
+          <span class="keys"><span class="keycap">Wheel</span></span>
+          <span class="desc">ซูมเข้า/ออก</span>
+        </div>`;
+    }
+  }
+  ffHint.addEventListener('click', (e)=>{
+    const t = e.target.closest('[data-action="toggle-mode"]');
+    if (t){ setCameraMode(params.cameraMode === 'Orbit' ? 'Free-fly' : 'Orbit'); }
+  });
+
+  const params = {
+    showBackground:true,
+    cameraMode:'Orbit',
+    flySpeed: 2.0,
+    rotationSpeed: 0.25,
+    model: {
+      layout: {
+        textGap: 0.115,
+        logoGap: 0.1
+      },
+      core: {
+        visible: true,
+        useOriginalMaterial: false,
+        scale: 1.0,
+        offsetX: 0,
+        offsetY: 0,
+        offsetZ: 0,
+        rotX: 0,
+        rotY: 0,
+        rotZ: 0,
+        color:'#cfd5e2',
+        metalness:0.2,
+        roughness:0.5,
+        clearcoat:0.0
+      },
+      text: {
+        visible: true,
+        useOriginalMaterial: false,
+        scale: 0.95,
+        offsetX: 0,
+        offsetY: -0.01,
+        offsetZ: 0,
+        rotX: 0,
+        rotY: 0,
+        rotZ: 0,
+        color:'#f3f4f6',
+        metalness:0.15,
+        roughness:0.6,
+        clearcoat:0.0
+      },
+      logo: {
+        visible: true,
+        useOriginalMaterial: true,
+        scale: 0.5,
+        offsetX: 0,
+        offsetY: -0.005,
+        offsetZ: 0,
+        rotX: 0,
+        rotY: 0,
+        rotZ: 0,
+        color:'#fef7c3',
+        metalness:0.0,
+        roughness:0.4,
+        clearcoat:0.1
+      }
+    }
+  };
+
+  // Create Lighting tab and page dynamically
+  {
+    const tabs = document.querySelector('#panel .tabs');
+    const content = document.querySelector('#panel .tab-content');
+    if (tabs && content){
+      const btn = document.createElement('button');
+      btn.className = 'tab-btn';
+      btn.dataset.tab = 'lighting';
+      btn.textContent = 'Lighting';
+      tabs.appendChild(btn);
+
+      const page = document.createElement('div');
+      page.id = 'tab-lighting';
+      page.className = 'tab-page';
+      page.style.display = 'none';
+      const container = document.createElement('div');
+      container.id = 'guiLighting';
+      page.appendChild(container);
+      content.appendChild(page);
+    }
+  }
+  // Tabs behavior
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const pages = {
+    model: document.getElementById('tab-model'),
+    control: document.getElementById('tab-control'),
+    lighting: document.getElementById('tab-lighting')
+  };
+  tabBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      tabBtns.forEach(b=> b.classList.remove('active'));
+      btn.classList.add('active');
+      const t = btn.dataset.tab;
+      pages.model.style.display = (t==='model')? 'block':'none';
+      pages.control.style.display   = (t==='control')? 'block':'none';
+      if (pages.lighting) pages.lighting.style.display  = (t==='lighting')? 'block':'none';
+    });
+  });
+
+  // GUIs
+  const guiModel = new GUI({ title:'Model', container: document.getElementById('guiModel') });
+  const guiCtrl = new GUI({ title:'Control', container: document.getElementById('guiControl') });
+  const guiLight = new GUI({ title:'Lighting', container: document.getElementById('guiLighting') });
+
+  function forEachModelMesh(fn){
+    forEachItemMesh('core', fn);
+  }
+
+  function applyParameterState(){
+    applyModelLayout();
+    stackState.order.forEach(id=> applyItemMaterial(id));
+    if (!stackGroup && model){
+      model.visible = params.model.core.visible !== false;
+    }
+  }
+
+  const layoutFolder = guiModel.addFolder('Layout');
+  layoutFolder.add(params.model.layout, 'textGap', 0, 0.3, 0.002).name('Text gap').onChange(()=> applyModelLayout());
+  layoutFolder.add(params.model.layout, 'logoGap', 0, 0.3, 0.002).name('Logo gap').onChange(()=> applyModelLayout());
+  layoutFolder.open();
+
+  function bindModelControls(id, label){
+    const conf = params.model[id];
+    if (!conf) return;
+    const folder = guiModel.addFolder(label);
+    folder.add(conf, 'visible').name('Visible').onChange(()=> updateItemVisibility(id));
+    folder.add(conf, 'useOriginalMaterial').name('Use original material').onChange(()=> applyItemMaterial(id));
+    folder.add(conf, 'scale', 0.2, 2.5, 0.01).name('Scale').onChange(()=> applyModelLayout());
+    folder.add(conf, 'offsetY', -0.3, 0.6, 0.005).name('Offset Y').onChange(()=> applyModelLayout());
+    folder.add(conf, 'offsetX', -0.5, 0.5, 0.005).name('Offset X').onChange(()=> applyModelLayout());
+    folder.add(conf, 'offsetZ', -0.5, 0.5, 0.005).name('Offset Z').onChange(()=> applyModelLayout());
+    folder.add(conf, 'rotX', -180, 180, 1).name('Rotate X').onChange(()=> applyModelLayout());
+    folder.add(conf, 'rotY', -180, 180, 1).name('Rotate Y').onChange(()=> applyModelLayout());
+    folder.add(conf, 'rotZ', -180, 180, 1).name('Rotate Z').onChange(()=> applyModelLayout());
+    folder.addColor(conf, 'color').name('Base color').onChange(()=> applyItemMaterial(id));
+    folder.add(conf, 'metalness', 0, 1, 0.01).name('Metallic').onChange(()=> applyItemMaterial(id));
+    folder.add(conf, 'roughness', 0, 1, 0.01).name('Roughness').onChange(()=> applyItemMaterial(id));
+    folder.add(conf, 'clearcoat', 0, 1, 0.01).name('Clearcoat').onChange(()=> applyItemMaterial(id));
+    folder.open();
+  }
+
+  bindModelControls('core','Main Model');
+  bindModelControls('text','Text');
+  bindModelControls('logo','KU Logo');
+
+  guiCtrl.add(params, 'cameraMode', ['Orbit','Free-fly']).name('Mode').onChange(v=> setCameraMode(v));
+  guiCtrl.add(params, 'flySpeed', 0.2, 20, 0.1).name('Fly speed');
+  guiCtrl.add(params, 'rotationSpeed', 0, 2, 0.01).name('Rotation speed');
+  guiCtrl.add(params, 'showBackground').name('Show HDRi as background').onChange(v=>{
+    if (v && scene.environment) scene.background = scene.environment; else scene.background = new THREE.Color(0x0b0f16);
+  });
+// Lighting controls
+  const lightParams = {
+    exposure: renderer.toneMappingExposure,
+    hemiEnabled: true,
+    hemiIntensity: hemi.intensity,
+    hemiSkyColor: '#ffffff',
+    hemiGroundColor: '#11121a',
+    dirEnabled: true,
+    dirIntensity: dirLight.intensity,
+    dirColor: '#ffffff',
+    dirX: dirLight.position.x,
+    dirY: dirLight.position.y,
+    dirZ: dirLight.position.z,
+    spotEnabled: false,
+    spotIntensity: spotLight.intensity,
+    spotColor: '#ffffff',
+    spotX: spotLight.position.x,
+    spotY: spotLight.position.y,
+    spotZ: spotLight.position.z,
+    spotAngleDeg: THREE.MathUtils.radToDeg(spotLight.angle),
+    spotPenumbra: spotLight.penumbra,
+    spotDistance: spotLight.distance
+  };
+  const gGlobal = guiLight.addFolder('Global');
+  gGlobal.add(lightParams, 'exposure', 0.1, 2.5, 0.01).name('Exposure').onChange(v=>{ renderer.toneMappingExposure = v; });
+  const gHemi = guiLight.addFolder('Hemisphere');
+  gHemi.add(lightParams, 'hemiEnabled').name('Enabled').onChange(v=>{ hemi.visible = v; });
+  gHemi.add(lightParams, 'hemiIntensity', 0, 2, 0.01).name('Intensity').onChange(v=>{ hemi.intensity = v; });
+  gHemi.addColor(lightParams, 'hemiSkyColor').name('Sky color').onChange(v=>{ hemi.color.set(v); });
+  gHemi.addColor(lightParams, 'hemiGroundColor').name('Ground color').onChange(v=>{ hemi.groundColor.set(v); });
+  const gDir = guiLight.addFolder('Directional');
+  gDir.add(lightParams, 'dirEnabled').name('Enabled').onChange(v=>{ dirLight.visible = v; });
+  gDir.add(lightParams, 'dirIntensity', 0, 8, 0.01).name('Intensity').onChange(v=>{ dirLight.intensity = v; });
+  gDir.addColor(lightParams, 'dirColor').name('Color').onChange(v=>{ dirLight.color.set(v); });
+  gDir.add(lightParams, 'dirX', -20, 20, 0.01).name('Pos X').onChange(v=>{ dirLight.position.x = v; });
+  gDir.add(lightParams, 'dirY', -20, 20, 0.01).name('Pos Y').onChange(v=>{ dirLight.position.y = v; });
+  gDir.add(lightParams, 'dirZ', -20, 20, 0.01).name('Pos Z').onChange(v=>{ dirLight.position.z = v; });
+  const gSpot = guiLight.addFolder('Spotlight');
+  gSpot.add(lightParams, 'spotEnabled').name('Enabled').onChange(v=>{ spotLight.visible = v; });
+  gSpot.add(lightParams, 'spotIntensity', 0, 10, 0.01).name('Intensity').onChange(v=>{ spotLight.intensity = v; });
+  gSpot.addColor(lightParams, 'spotColor').name('Color').onChange(v=>{ spotLight.color.set(v); });
+  gSpot.add(lightParams, 'spotX', -20, 20, 0.01).name('Pos X').onChange(v=>{ spotLight.position.x = v; });
+  gSpot.add(lightParams, 'spotY', -20, 20, 0.01).name('Pos Y').onChange(v=>{ spotLight.position.y = v; });
+  gSpot.add(lightParams, 'spotZ', -20, 20, 0.01).name('Pos Z').onChange(v=>{ spotLight.position.z = v; });
+  gSpot.add(lightParams, 'spotAngleDeg', 5, 90, 0.5).name('Angle (deg)').onChange(v=>{ spotLight.angle = THREE.MathUtils.degToRad(v); });
+  gSpot.add(lightParams, 'spotPenumbra', 0, 1, 0.01).name('Penumbra').onChange(v=>{ spotLight.penumbra = v; });
+  gSpot.add(lightParams, 'spotDistance', 0, 50, 0.1).name('Distance').onChange(v=>{ spotLight.distance = v; });
+
+  // --- Reset camera button ---
+  document.getElementById('resetCam').addEventListener('click', ()=>{
+    if (fp.isLocked) fp.unlock();
+    camera.position.copy(defaultCam);
+    controls.target.copy(defaultTarget);
+    controls.update();
+  });
+
+  // --- Resize ---
+  addEventListener('resize', ()=>{
+    renderer.setSize(innerWidth, innerHeight);
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+  });
+
+  // --- Kickoff: load HDRi then GLB ---
+  (async function start(){
+    try{ await loadHDRI('assets/HDRi/pic.hdr'); } catch(e){ console.warn('Using dark background (no HDRi)'); }
+    try{ await loadDefaultStack(); } catch(e){
+      console.warn('Default stack failed, falling back to primary model', e);
+      try{ await loadGLB('assets/model/myface.glb'); } catch(e2){ console.warn('No default GLB found'); }
+    }
+    renderModeHint();
+  })();
+
+  // --- Free-fly controls ---
+  const keys = Object.create(null);
+  addEventListener('keydown', (e)=>{
+    if (['KeyW','KeyA','KeyS','KeyD','Space','ControlLeft','ShiftLeft','KeyQ','KeyE','KeyF'].includes(e.code)) e.preventDefault();
+    keys[e.code] = true;
+    if (e.code === 'KeyF') setCameraMode(params.cameraMode === 'Orbit' ? 'Free-fly' : 'Orbit');
+  });
+  addEventListener('keyup', (e)=>{ keys[e.code] = false; });
+
+  renderer.domElement.addEventListener('click', ()=>{
+    if (params.cameraMode === 'Free-fly' && !fp.isLocked) fp.lock();
+  });
+
+  function showToast(msg, ms=2200){
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(showToast._tid); showToast._tid = setTimeout(()=> t.classList.remove('show'), ms);
+  }
+
+  function setCameraMode(mode){
+    params.cameraMode = mode;
+    if (mode === 'Free-fly'){
+      controls.enabled = false;
+      showToast('Free-fly Mode');
+    } else {
+      if (fp.isLocked) fp.unlock();
+      controls.enabled = true;
+      showToast('Orbit mode');
+    }
+    renderModeHint();
+  }
+
+  const clock = new THREE.Clock();
+
+  // --- Render loop ---
+  renderer.setAnimationLoop(()=>{
+    const dt = clock.getDelta();
+    const elapsed = clock.elapsedTime;
+
+    if (model){
+      model.rotation.y += params.rotationSpeed * dt;
+    }
+
+    if (modelAnim.target){
+      const floatY = modelAnim.baseY + Math.sin(elapsed * modelAnim.floatSpeed) * modelAnim.floatAmplitude;
+      modelAnim.target.position.y = floatY;
+    }
+
+    if (params.cameraMode === 'Free-fly'){
+      const base = params.flySpeed * (keys['ShiftLeft'] ? 2.5 : 1.0);
+      if (keys['KeyW']) fp.moveForward(base * dt);
+      if (keys['KeyS']) fp.moveForward(-base * dt);
+      if (keys['KeyA']) fp.moveRight(-base * dt);
+      if (keys['KeyD']) fp.moveRight(base * dt);
+      const obj = fp.getObject();
+      if (keys['Space'] || keys['KeyE']) obj.position.y += base * dt;
+      if (keys['ControlLeft'] || keys['KeyQ']) obj.position.y -= base * dt;
+    } else {
+      controls.update();
+    }
+
+    renderer.render(scene, camera);
+  });
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

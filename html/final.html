@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PBR Viewer — Three.js</title>
   <style>
+    /* FPS / stats overlay */
+    #fps { position:fixed; right:12px; top:12px; color:var(--muted); background:rgba(0,0,0,0.24); padding:6px 8px; border-radius:8px; font-size:12px; z-index:30; pointer-events:none; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Segoe UI Mono', monospace; }
+    #fps b{ color:var(--text); font-weight:700; margin-right:6px; }
     :root{ --bg:#0f1115; --panel:#151923; --text:#e5e7eb; --muted:#9aa3b2; --gold:#eab308; }
     *{ box-sizing:border-box; }
     html,body{ height:100%; }
@@ -116,6 +119,7 @@
 </head>
 <body>
   <canvas id="c"></canvas>
+  <div id="fps" aria-hidden="true"><b>FPS</b><span id="fpsValue">--</span></div>
 
   <div class="dock">
     <button id="togglePanel" class="pill" aria-label="แผงคอนโทรล">
@@ -504,6 +508,85 @@
     });
   }
 
+  // --- Actor systems: cats & dogs ---
+  const actorSettings = {
+    speedMultiplier: 1.0,
+    catSpinEnabled: true,
+    catsCount: 4,
+    dogsCount: 3,
+    dogSpeed: 1.0,
+    dogSpinEnabled: true,
+    dogSpinIntensity: 1.5
+  };
+
+  const cats = [];
+  const dogs = [];
+
+  function makeActorWrapper(sceneObj, namePrefix='actor'){
+    const wrapper = new THREE.Group();
+    wrapper.name = namePrefix;
+    wrapper.add(sceneObj);
+    // floor
+    const b2 = new THREE.Box3().setFromObject(wrapper);
+    const minY = b2.min.y;
+    wrapper.position.y += -minY;
+    wrapper.traverse(o=>{ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+    return wrapper;
+  }
+
+  async function spawnCats(n){
+    for (let i=0;i<n;i++){
+      try{
+        const catScene = await loadRawGLB('assets/model/oiiaioooooiai_cat.glb');
+        if (!catScene) continue;
+        applyPBR(catScene);
+        const wrapper = makeActorWrapper(catScene, 'cat-actor');
+  // scale if too large
+  const b = new THREE.Box3().setFromObject(wrapper);
+  const s = b.getSize(new THREE.Vector3());
+  const maxDim = Math.max(s.x, s.y, s.z);
+  if (maxDim > 1.2) wrapper.scale.setScalar(1.2 / maxDim);
+  // re-floor after scaling (set absolute to avoid cumulative shifts)
+  const b_after = new THREE.Box3().setFromObject(wrapper);
+  const minY_after = b_after.min.y;
+  wrapper.position.y = -minY_after;
+  // position randomly
+  const area = 4.6;
+  wrapper.position.x = (Math.random()*2 - 1) * area;
+  wrapper.position.z = (Math.random()*2 - 1) * area;
+        // actor state
+        cats.push({ root: wrapper, dir: new THREE.Vector3(Math.random()*2-1,0,Math.random()*2-1).normalize(), target: new THREE.Vector3(), speed: 2.4, rotateSpeed: 12.0 });
+        scene.add(wrapper);
+      } catch (e){ console.warn('spawnCats error', e); }
+    }
+  }
+
+  async function spawnDogs(n){
+    for (let i=0;i<n;i++){
+      try{
+        const dogScene = await loadRawGLB('assets/model/low_poly_dog.glb');
+        if (!dogScene) continue;
+        applyPBR(dogScene);
+        const wrapper = makeActorWrapper(dogScene, 'dog-actor');
+        // scale to reasonable size
+        const b = new THREE.Box3().setFromObject(wrapper);
+        const s = b.getSize(new THREE.Vector3());
+        const maxDim = Math.max(s.x, s.y, s.z);
+        if (maxDim > 1.2) wrapper.scale.setScalar(1.2 / maxDim);
+  // re-floor after scaling (set absolute to avoid cumulative shifts)
+  const b_after = new THREE.Box3().setFromObject(wrapper);
+  const minY_after = b_after.min.y;
+  wrapper.position.y = -minY_after;
+  const area = 4.6;
+  wrapper.position.x = (Math.random()*2 - 1) * area;
+  wrapper.position.z = (Math.random()*2 - 1) * area;
+  // give dogs basic steering state
+  dogs.push({ root: wrapper, speed: 1.0, dir: new THREE.Vector3(Math.random()*2-1,0,Math.random()*2-1).normalize(), target: new THREE.Vector3(), rotateSpeed: 4.0 });
+        scene.add(wrapper);
+      } catch (e){ console.warn('spawnDogs error', e); }
+    }
+  }
+
   async function loadDefaultStack(){
     clearCurrentModel();
     const group = new THREE.Group();
@@ -542,8 +625,6 @@
       throw err;
     }
   }
-
-
 
 // --- Drag & Drop support ---
   addEventListener('dragover', (e)=>{ e.preventDefault(); });
@@ -793,10 +874,28 @@
 
   guiCtrl.add(params, 'cameraMode', ['Orbit','Free-fly']).name('Mode').onChange(v=> setCameraMode(v));
   guiCtrl.add(params, 'flySpeed', 0.2, 20, 0.1).name('Fly speed');
-  guiCtrl.add(params, 'rotationSpeed', 0, 2, 0.01).name('Rotation speed');
+  guiCtrl.add(params, 'rotationSpeed', 0, 50, 0.01).name('Rotation speed');
   guiCtrl.add(params, 'showBackground').name('Show HDRi as background').onChange(v=>{
     if (v && scene.environment) scene.background = scene.environment; else scene.background = new THREE.Color(0x0b0f16);
   });
+  // Actor controls
+  const actorFolder = guiCtrl.addFolder('Actors');
+  actorFolder.add(actorSettings, 'speedMultiplier', 0.1, 4.0, 0.05).name('Speed multiplier').onChange(v=>{});
+  actorFolder.add(actorSettings, 'catSpinEnabled').name('Cat spin');
+  actorFolder.add(actorSettings, 'catsCount', 0, 8, 1).name('Cats count').onFinishChange(v=>{
+    // respawn cats to new count
+    // remove existing
+    cats.forEach(c=> scene.remove(c.root)); cats.length = 0;
+    spawnCats(v);
+  });
+  actorFolder.add(actorSettings, 'dogsCount', 0, 8, 1).name('Dogs count').onFinishChange(v=>{
+    dogs.forEach(d=> scene.remove(d.root)); dogs.length = 0;
+    spawnDogs(v);
+  });
+  actorFolder.add(actorSettings, 'dogSpeed', 0.1, 4.0, 0.05).name('Dog speed').onChange(v=>{});
+  actorFolder.add(actorSettings, 'dogSpinEnabled').name('Dog spin');
+  actorFolder.add(actorSettings, 'dogSpinIntensity', 0.0, 6.0, 0.1).name('Dog spin intensity').onChange(v=>{});
+  actorFolder.open();
 // Lighting controls
   const lightParams = {
     exposure: renderer.toneMappingExposure,
@@ -867,6 +966,9 @@
       console.warn('Default stack failed, falling back to primary model', e);
       try{ await loadGLB('assets/model/myface.glb'); } catch(e2){ console.warn('No default GLB found'); }
     }
+  // spawn actors (non-blocking)
+  spawnCats(actorSettings.catsCount).catch(()=>{});
+  spawnDogs(actorSettings.dogsCount).catch(()=>{});
     renderModeHint();
   })();
 
@@ -903,6 +1005,10 @@
   }
 
   const clock = new THREE.Clock();
+  let fpsLastTime = performance.now();
+  let fpsFrameCount = 0;
+  const fpsEl = document.createElement('div');
+  const fpsValueEl = () => document.getElementById('fpsValue');
 
   // --- Render loop ---
   renderer.setAnimationLoop(()=>{
@@ -932,29 +1038,76 @@
     }
 
     renderer.render(scene, camera);
+
+    // FPS / basic stats update (low-overhead)
+    fpsFrameCount++;
+    const now = performance.now();
+    const span = now - fpsLastTime;
+    if (span >= 250) { // update 4x/sec
+      const fps = Math.round((fpsFrameCount / span) * 1000);
+      const info = renderer.info || null;
+      let statsText = fps + ' fps';
+      if (info){
+        const draws = info.render ? (info.render.calls || info.render.draws || 0) : 0;
+        const tris = info.render ? (info.render.triangles || 0) : 0;
+        statsText += ` · ${draws} draws · ${tris} tris`;
+      }
+      const el = fpsValueEl();
+      if (el) el.textContent = statsText;
+      fpsLastTime = now;
+      fpsFrameCount = 0;
+    }
+    // --- Actors animation: cats ---
+    const dtSec = dt;
+    const area = 4.6;
+    for (let i=0;i<cats.length;i++){
+      const a = cats[i];
+      const pos = a.root.position;
+      const toTarget = a.target.clone().sub(pos);
+      const dist = toTarget.length();
+      if (dist < 0.2 || a.target.length() === 0){
+        a.target.set((Math.random()*2-1)*area, 0, (Math.random()*2-1)*area);
+      } else {
+        toTarget.y = 0;
+        toTarget.normalize();
+        a.dir.lerp(toTarget, Math.min(1, dtSec * 4.0)).normalize();
+        const mv = a.dir.clone().multiplyScalar(a.speed * dtSec * actorSettings.speedMultiplier);
+        a.root.position.add(mv);
+        const targetYaw = Math.atan2(a.dir.x, a.dir.z);
+        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, targetYaw, 0));
+        a.root.quaternion.slerp(q, Math.min(1, dtSec * a.rotateSpeed));
+      }
+      // spins (enabled by control)
+      if (actorSettings.catSpinEnabled){
+        a.root.rotation.y += 12.0 * dtSec; // base spin
+        a.root.traverse(o=>{ if (o.isMesh){ o.rotation.y += 30.0 * dtSec; } });
+      }
+    }
+
+    // --- Actors animation: dogs (walk, no spin) ---
+    for (let i=0;i<dogs.length;i++){
+      const d = dogs[i];
+      const pos = d.root.position;
+      const toTarget = d.target.clone().sub(pos);
+      const dist = toTarget.length();
+      if (dist < 0.15 || d.target.length() === 0){
+        d.target.set((Math.random()*2-1)*area, 0, (Math.random()*2-1)*area);
+      } else {
+        toTarget.y = 0;
+        toTarget.normalize();
+        d.dir.lerp(toTarget, Math.min(1, dtSec * 2.0)).normalize();
+  const mv = d.dir.clone().multiplyScalar((d.speed * actorSettings.dogSpeed) * dtSec * 0.6 * actorSettings.speedMultiplier);
+        d.root.position.add(mv);
+        const targetYaw = Math.atan2(d.dir.x, d.dir.z);
+        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, targetYaw, 0));
+        d.root.quaternion.slerp(q, Math.min(1, dtSec * d.rotateSpeed));
+      }
+      // add a gentle random spin (configurable)
+      if (actorSettings.dogSpinEnabled){
+        d.root.rotation.y += (Math.random()*2 - 1) * (actorSettings.dogSpinIntensity) * dtSec * actorSettings.speedMultiplier;
+      }
+    }
   });
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
